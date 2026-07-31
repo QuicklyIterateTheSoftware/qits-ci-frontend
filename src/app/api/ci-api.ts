@@ -2,7 +2,13 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { QITS_API_BASE } from './api-base';
-import type { CiRepositoriesResponse, CiRunDto, CiRunsResponse } from './dto';
+import type {
+  CiRepositoriesResponse,
+  CiRepositorySummariesResponse,
+  CiRepositorySummaryDto,
+  CiRunDto,
+  CiRunsResponse,
+} from './dto';
 
 /**
  * Everything this app reads from qits-ci, and the one thing it writes.
@@ -34,6 +40,36 @@ export class CiApi {
       this.http.get<CiRepositoriesResponse>(`${this.base}/ci/api/repositories`),
     );
     return response.repositoryIds;
+  }
+
+  /**
+   * One headline pair per repository qits-ci has runs for: the latest run, and the latest on the
+   * repository's main branch. Ascending by repository id.
+   *
+   * Read once when the tree loads, and again only when the active list shows the platform's work in
+   * flight has changed. It is the tree's one aggregate read, and the alternative — a run listing per
+   * repository just to learn each row's newest status — is the eager fan-out Decision 3 exists to
+   * avoid, paid on every repository rather than only the expanded ones.
+   */
+  async repositorySummaries(): Promise<readonly CiRepositorySummaryDto[]> {
+    const response = await firstValueFrom(
+      this.http.get<CiRepositorySummariesResponse>(`${this.base}/ci/api/repositories/summary`),
+    );
+    return response.repositories;
+  }
+
+  /**
+   * Everything the platform has in flight — QUEUED or RUNNING, every repository, newest first.
+   *
+   * Deliberately tiny and deliberately unfiltered: this is the one read on either page whose job is
+   * *discovery* rather than following something already on screen, so it cannot be narrowed to what
+   * the user has expanded without answering a different question.
+   */
+  async activeRuns(): Promise<readonly CiRunDto[]> {
+    const response = await firstValueFrom(
+      this.http.get<CiRunsResponse>(`${this.base}/ci/api/runs/active`),
+    );
+    return response.runs;
   }
 
   /**

@@ -25,6 +25,15 @@ describe('StatusBadge', () => {
     expect(await toneOf('SKIPPED')).toContain('neutral');
   });
 
+  /**
+   * A queued run has produced no outcome at all, so it gets the tone that says nothing has happened
+   * — and `RUNNING` keeps `info` for the one state where something is actually moving.
+   */
+  it('reads a run’s QUEUED as neutral, and keeps RUNNING distinct from it', async () => {
+    expect(await toneOf('QUEUED')).toContain('neutral');
+    expect(await toneOf('RUNNING')).not.toContain('neutral');
+  });
+
   it('falls back to neutral for a status this build has never heard of', async () => {
     expect(await toneOf('SOMETHING_NEW')).toContain('neutral');
   });

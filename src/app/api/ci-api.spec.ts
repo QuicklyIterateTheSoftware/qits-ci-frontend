@@ -30,6 +30,25 @@ describe('CiApi', () => {
     await expect(ids).resolves.toEqual(['qits-ci', 'qits-gateway']);
   });
 
+  it('unwraps the repository summaries and keeps a repository that has never built', async () => {
+    const summaries = api.repositorySummaries();
+    http.expectOne('/ci/api/repositories/summary').flush({
+      repositories: [
+        { repositoryId: 'qits-ci', lastRun: { id: 'r1' }, lastMainRun: { id: 'r1' } },
+        { repositoryId: 'qits-docs', lastRun: null, lastMainRun: null },
+      ],
+    });
+    await expect(summaries).resolves.toHaveLength(2);
+  });
+
+  it('reads the platform-wide active list unfiltered — no repository, no limit', async () => {
+    const runs = api.activeRuns();
+    const request = http.expectOne('/ci/api/runs/active');
+    expect(request.request.params.keys()).toEqual([]);
+    request.flush({ runs: [{ id: 'r1', status: 'QUEUED' } as CiRunDto] });
+    await expect(runs).resolves.toMatchObject([{ id: 'r1', status: 'QUEUED' }]);
+  });
+
   it('asks for the newest hundred runs of one repository', async () => {
     const runs = api.runs('qits-ci', 100);
     const request = http.expectOne(

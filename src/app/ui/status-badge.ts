@@ -10,8 +10,15 @@ import { QitsBadge, type QitsBadgeTone } from '@qits/ui-components';
  *
  * One map covers both enums because they overlap and never collide: `SUCCESS` and `FAILED` mean the
  * same thing on a run and on a step, and `SKIPPED` only ever appears on a step.
+ *
+ * `QUEUED` is `neutral` on purpose. A queued run has produced no outcome at all — nothing has gone
+ * right, nothing has gone wrong, and nothing is even happening yet — so it reads as the absence of
+ * news, while `RUNNING` keeps `info` for the one state where something is actually moving. It is
+ * also the tone the platform's design register already gives a queued *deployment*, and a status
+ * word that changed colour between the two services would be a distinction without a difference.
  */
 const TONES: Readonly<Record<string, QitsBadgeTone>> = {
+  QUEUED: 'neutral',
   RUNNING: 'info',
   SUCCESS: 'success',
   FAILED: 'danger',

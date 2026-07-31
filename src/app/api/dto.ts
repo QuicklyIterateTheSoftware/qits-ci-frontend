@@ -18,8 +18,16 @@
  * where it is formatted.
  */
 
-/** A run's outcome. `RUNNING` is the only non-terminal one, which is what the poll keys off. */
-export type CiRunStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CONFIG_ERROR';
+/**
+ * A run's outcome.
+ *
+ * `QUEUED` and `RUNNING` are the two non-terminal ones — a run is accepted and recorded before a
+ * daemon picks it up — and that pair is what every poll on this client keys off. `QUEUED` arrived
+ * with the active-runs list: a platform-wide "what is in flight" is only true if it counts the runs
+ * that have not started yet, and a run waiting for a daemon is exactly the thing an operator wants
+ * to see before it becomes a wait they are wondering about.
+ */
+export type CiRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CONFIG_ERROR';
 
 /** A step's outcome. `PENDING` and `RUNNING` are legacy on this enum and never written. */
 export type CiStepStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED';
@@ -34,9 +42,17 @@ export type RepositoryArchetype =
 /** Trigger types in the order they are drawn; a group with no runs is not drawn at all. */
 export const CI_TRIGGER_TYPES: readonly CiTriggerType[] = ['POST_RECEIVE', 'EVENT'];
 
-/** A run is over when it is anything but `RUNNING` — the whole rule behind Decision 5's poll. */
+/** The statuses a run can still leave. Everything else is final and nothing further will change. */
+const NON_TERMINAL: ReadonlySet<CiRunStatus> = new Set<CiRunStatus>(['QUEUED', 'RUNNING']);
+
+/**
+ * A run is over when it can no longer change — the whole rule behind Decision 5's poll.
+ *
+ * `QUEUED` counts as in flight, not as finished. A run page opened on a queued run must keep
+ * reading until a daemon takes it, or it would sit on `QUEUED` forever while the build ran.
+ */
 export function isTerminal(status: CiRunStatus): boolean {
-  return status !== 'RUNNING';
+  return !NON_TERMINAL.has(status);
 }
 
 /**
@@ -86,9 +102,28 @@ export interface CiRepositoriesResponse {
   readonly repositoryIds: readonly string[];
 }
 
-/** ci's list envelope. */
+/** ci's list envelope, shared by the per-repository listing and the platform-wide active list. */
 export interface CiRunsResponse {
   readonly runs: readonly CiRunDto[];
+}
+
+/**
+ * One repository's headline runs: its latest run on any branch, and the latest on its main branch.
+ *
+ * Either field is null when qits-ci has no such run, and a repository with no runs at all has no
+ * entry in the response. Both absences mean the same thing on screen — **no badge** — because a
+ * placeholder badge on a repository that has never built would be an invented status, and the whole
+ * point of these two badges is that they report.
+ */
+export interface CiRepositorySummaryDto {
+  readonly repositoryId: string;
+  readonly lastRun: CiRunDto | null;
+  readonly lastMainRun: CiRunDto | null;
+}
+
+/** The summary envelope, ascending by repository id. */
+export interface CiRepositorySummariesResponse {
+  readonly repositories: readonly CiRepositorySummaryDto[];
 }
 
 /** A project's dns record, or the whole object is null when it registers no domain. */

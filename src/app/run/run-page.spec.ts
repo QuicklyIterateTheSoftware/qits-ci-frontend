@@ -262,6 +262,38 @@ describe('RunPage', () => {
     expect(text()).not.toContain('following');
   });
 
+  /**
+   * `QUEUED` is in flight, not finished. A page that treated it as terminal would sit on the word
+   * QUEUED while the build ran to completion behind it — which is the same failure as never polling,
+   * arrived at from the other direction.
+   */
+  it('keeps reading a QUEUED run until a daemon picks it up', async () => {
+    useIntervalFakes();
+    await open();
+    expectRun().flush(run({ status: 'QUEUED', finishedAt: null, steps: [], live: null }));
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('QUEUED');
+    // Nothing has started, so nothing invents a step — and no cancel, which is a running run's.
+    expect(text()).not.toContain('This run recorded no steps.');
+    expect(buttons().some((button) => (button.textContent ?? '').includes('Cancel run'))).toBe(
+      false,
+    );
+
+    await tick(POLL_INTERVAL_MS);
+    expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
+    await settle();
+    expect(text()).toContain('RUNNING');
+
+    await tick(POLL_INTERVAL_MS);
+    expectRun().flush(run());
+    await settle();
+
+    await tick(POLL_INTERVAL_MS * 3);
+    http.verify();
+  });
+
   it('pauses while the tab is hidden and reads once when it comes back', async () => {
     useIntervalFakes();
     await open();

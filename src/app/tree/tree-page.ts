@@ -8,20 +8,32 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { QitsButton } from '@qits/ui-components';
+import { QitsBadge, QitsButton } from '@qits/ui-components';
 import { RepositoryAttribution, type Attribution } from '../api/attribution';
 import { CiApi } from '../api/ci-api';
-import type { ProjectDto, RepositoryDto } from '../api/dto';
+import type { CiRepositorySummaryDto, CiRunDto, ProjectDto, RepositoryDto } from '../api/dto';
 import { ProjectsApi } from '../api/projects-api';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
-import { repositoryLabel } from '../ui/format';
+import { formatDayTime, repositoryLabel, shortSha } from '../ui/format';
 import { IDLE, LOADING, failed, ready, type Loadable } from '../ui/loadable';
+import { StatusBadge } from '../ui/status-badge';
+import { ActiveRuns } from './active-runs';
 import { RUN_PAGE_SIZE, RepoRuns, type RunsNode } from './repo-runs';
 import { TreeNode } from './tree-node';
 
 /** A node nobody has expanded yet: no request made, and that is a state rather than an absence. */
 const UNVISITED: RunsNode = { state: IDLE, limited: false };
+
+/**
+ * What the `?project=` parameter says when the answer is "none of them".
+ *
+ * Projects are open by default, so an *absent* parameter cannot mean "nothing is expanded" — it
+ * already means "everything is". Collapsing the last one therefore has to write something, and an
+ * empty value is the honest something: it is present, so the default does not apply, and it names
+ * no project, which is exactly the state it records.
+ */
+const NONE_EXPANDED = '';
 
 /** The comma-joined query parameter back as a set. */
 function idSet(value: string | null): ReadonlySet<string> {
@@ -48,13 +60,26 @@ function withEntry<T>(map: ReadonlyMap<string, T>, key: string, value: T): Reado
  * The tree: projects, their repositories, and each repository's runs grouped by what triggered
  * them — plus the bucket for CI activity no project claims.
  *
- * **Every level loads on expansion and caches once loaded.** Composing the whole tree eagerly would
- * cost `1 + P + R` requests before the first pixel, with every run list unbounded; the user's
- * clicks are the bound instead, so there is no fan-out budget to tune. On load this page makes
- * exactly two requests, and both are flat lists: the projects, and the repository ids qits-ci has
- * runs for. A URL that names a repository nothing has opened buys one more thing — the attribution
- * lookup that finds its project — and that is the single deliberate exception, because the
- * alternative is a deep link landing on a tree that cannot show what it pointed at.
+ * **The levels that cost a request per node still load on expansion.** Composing the whole tree
+ * eagerly would cost `1 + P + R` requests before the first pixel, with every run list unbounded and
+ * every run list a different repository's; the user's clicks are the bound on those, so there is no
+ * fan-out budget to tune below a repository row.
+ *
+ * **On load this page reads `4 + P`**, and every one of those is a flat list:
+ *
+ * - `GET /projects/api/projects` — the spine.
+ * - `GET /ci/api/repositories` — the ids qits-ci has runs for, which is what the bucket counts.
+ * - `GET /ci/api/repositories/summary` — one headline pair per repository, for the row badges.
+ * - `GET /ci/api/runs/active` — the right rail's first read, and the only one that repeats.
+ * - `GET /projects/api/projects/{id}/repositories`, once per project — the attribution index.
+ *
+ * That last line is the deliberate amendment to Decision 3's budget, and it is bought with
+ * correctness that could not be had any other way. Attribution used to be built only when a deep
+ * link needed it, so until the first project was expanded *every* repository sat under "Not claimed
+ * by any project" — a screen that was wrong about the one thing this tree exists to report. The
+ * index is what makes the bucket right from the first paint, it is cached for the whole application
+ * so the run page never pays for it again, and the P requests it costs are the same P requests the
+ * old design paid the moment anybody opened the projects. Expanding a project is now free.
  *
  * **The second of those is what makes the tree honest.** qits-ci keys a run by `repoId`, which is
  * the shared git-host directory name; a repository qits-projects provisioned has that name as its
@@ -69,11 +94,16 @@ function withEntry<T>(map: ReadonlyMap<string, T>, key: string, value: T): Reado
  * pressing back on a tree should do. Reading expansion back out of the URL is also what makes the
  * back button *work* — the effect below loads whatever the URL says is open, so a restored
  * expansion fetches exactly the nodes it needs and no others.
+ *
+ * **Projects start open**, and only projects. Their repositories have already arrived, so drawing
+ * them costs nothing and hiding them behind a click hid the tree's whole first level behind one; the
+ * levels below stay shut because each of those *is* a request. An explicit `?project=` still wins
+ * outright — that is what keeps an expansion shareable, and what a link from the run page relies on.
  */
 @Component({
   selector: 'app-tree-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, Empty, QitsButton, RepoRuns, TreeNode],
+  imports: [ActiveRuns, Async, Empty, QitsBadge, QitsButton, RepoRuns, StatusBadge, TreeNode],
   templateUrl: './tree-page.html',
   styleUrl: './tree-page.css',
 })
@@ -92,10 +122,30 @@ export class TreePage {
   /** Every repository id qits-ci holds runs for — the bucket's own source of truth. */
   protected readonly repositoryIds = signal<Loadable<readonly string[]>>(LOADING);
 
-  /** Per project, its repositories. A missing key is a project nobody has expanded. */
+  /**
+   * The attribution index, loaded up front rather than on demand. Its state is what tells the
+   * repository rows apart from a tree that simply has not finished loading yet.
+   */
+  protected readonly index = signal<Loadable<Attribution>>(LOADING);
+
+  /**
+   * Per project, its repositories — filled in one pass from the index, not one project at a time.
+   * A key can still hold an error: when the index fails, every project row carries that failure and
+   * offers its own retry, which is the only lazy path left on this level.
+   */
   protected readonly repositories = signal<ReadonlyMap<string, Loadable<readonly RepositoryDto[]>>>(
     new Map(),
   );
+
+  /**
+   * Per repository id, its last run and its last main-branch run — the two badges on a row.
+   *
+   * There is no error state and no retry, deliberately. These badges annotate rows that are drawn
+   * and navigable without them, so a summary that did not arrive draws nothing; an inline warning on
+   * every repository in the tree would be far louder than what it reports, and a placeholder badge
+   * would be an invented status. Silence about an annotation is honest.
+   */
+  protected readonly summaries = signal<ReadonlyMap<string, CiRepositorySummaryDto>>(new Map());
 
   /** Per repository id, its runs. Keyed by `Repository.id`, which is qits-ci's `repoId`. */
   protected readonly runs = signal<ReadonlyMap<string, RunsNode>>(new Map());
@@ -125,14 +175,22 @@ export class TreePage {
   /** Repository ids already put through the lookup, so it happens at most once for each. */
   private readonly placed = new Set<string>();
 
-  protected readonly expandedProjects = computed(() => idSet(this.queryParams().get('project')));
-  protected readonly expandedRepos = computed(() => idSet(this.queryParams().get('repo')));
-
   /** The projects, once they are here; an empty list otherwise, so the template stays flat. */
   protected readonly projectList = computed(() => {
     const state = this.projects();
     return state.kind === 'ready' ? state.value : [];
   });
+
+  /**
+   * Which projects are drawn open. An absent parameter means all of them; a present one — including
+   * an empty one — means exactly what it names, so a shared URL survives being shared.
+   */
+  protected readonly expandedProjects = computed<ReadonlySet<string>>(() => {
+    const param = this.queryParams().get('project');
+    return param === null ? new Set(this.projectList().map((project) => project.id)) : idSet(param);
+  });
+
+  protected readonly expandedRepos = computed(() => idSet(this.queryParams().get('repo')));
 
   /**
    * Both roots failed, which is the one unrecoverable state: with neither the projects nor the
@@ -155,10 +213,12 @@ export class TreePage {
   });
 
   /**
-   * Every repository id claimed by a project that has been expanded. It is computed against the
-   * projects **already opened**, because that is all the client has asked about — so a repository
-   * that turns out to belong to a project leaves the bucket the moment that project expands, which
-   * is correct and visible.
+   * Every repository id some project claims.
+   *
+   * This used to be computed against the projects already *opened*, so a repository moved out of the
+   * unattributed bucket only when somebody expanded the project that owned it — which meant that on
+   * arrival the tree reported every repository on the platform as claimed by nobody. The index makes
+   * it complete from the first paint instead, and the bucket finally means what its label says.
    */
   private readonly claimed = computed(() => {
     const claimed = new Set<string>();
@@ -172,13 +232,17 @@ export class TreePage {
     return claimed;
   });
 
-  /** The bucket's rows: what qits-ci has runs for, minus what an expanded project claims. */
+  /** The bucket's rows: what qits-ci has runs for, minus what any project claims. */
   protected readonly unclaimed = computed(() => {
     const ids = this.repositoryIds();
     return ids.kind === 'ready' ? ids.value.filter((id) => !this.claimed().has(id)) : [];
   });
 
-  /** How many repositories qits-ci has runs for at all — honest before any project is opened. */
+  /**
+   * How many repositories qits-ci has runs for at all. It is qits-ci's own count and not the
+   * bucket's, so the header stays true whatever qits-projects turns out to claim — including when
+   * the index never arrived and nothing can be attributed.
+   */
   protected readonly knownRepositoryCount = computed(() => {
     const ids = this.repositoryIds();
     return ids.kind === 'ready' ? ids.value.length : 0;
@@ -197,14 +261,10 @@ export class TreePage {
     void this.reload();
 
     // What the URL says is open, is open — on first load, on a deep link, and on the back button.
-    // Guarded by the node's own presence in the map rather than by a flag: a load writes `loading`
-    // synchronously before it awaits, so the key exists by the time this effect could run again.
+    // Only the run level is left to load here: the repositories of every project arrived with the
+    // index. Guarded by the node's own presence in the map rather than by a flag, because a load
+    // writes `loading` synchronously before it awaits.
     effect(() => {
-      for (const projectId of this.expandedProjects()) {
-        if (!this.repositories().has(projectId)) {
-          void this.loadRepositories(projectId);
-        }
-      }
       for (const repoId of this.expandedRepos()) {
         if (!this.runs().has(repoId)) {
           void this.loadRuns(repoId);
@@ -212,53 +272,37 @@ export class TreePage {
       }
     });
 
-    // A repository the URL names but no opened project claims gets its owner looked up, once. It
-    // runs after the projects have answered — and after every already-expanded project has answered
-    // too, so a link that already named the right project costs no lookup at all.
+    // A repository named by a URL that also pinned the projects, but not the project that owns it.
+    // Nothing to do in the ordinary case — with no `?project=` every project is open and the
+    // repository is already on screen under its owner — so this runs only for an address that
+    // narrowed the tree past the thing it was pointing at.
     effect(() => {
-      if (this.projects().kind !== 'ready' || this.awaitingRepositories()) {
+      const index = this.index();
+      if (index.kind !== 'ready' || this.queryParams().get('project') === null) {
         return;
       }
       for (const repoId of this.entryRepos) {
-        if (!this.claimed().has(repoId) && !this.placed.has(repoId)) {
+        if (!this.placed.has(repoId)) {
           this.placed.add(repoId);
-          void this.place(repoId);
+          this.place(repoId, index.value);
         }
       }
     });
   }
 
-  /** True while a project the URL says is open has not answered with its repositories yet. */
-  private awaitingRepositories(): boolean {
-    return [...this.expandedProjects()].some((projectId) => {
-      const state = this.repositoriesOf(projectId);
-      return state.kind === 'idle' || state.kind === 'loading';
-    });
-  }
-
   /**
-   * Find the project that claims a repository and open it, so a `?repo=` alone lands where a
-   * `?project=&repo=` would have.
+   * Open the project that claims a repository, so a pinned URL still shows what it pointed at.
    *
    * The URL is *replaced* rather than pushed: this is the page repairing an address, not the user
-   * expanding a node, and back should return to wherever they came from rather than stepping
-   * through a correction they never made. The owner's repositories are seeded from the index the
-   * lookup already built, so opening it costs no further request. A repository the index does not
-   * name is genuinely unattributed, and it stays in the bucket where it belongs.
+   * expanding a node, and back should return to wherever they came from rather than stepping through
+   * a correction they never made. A repository the index does not name is genuinely unattributed,
+   * and it stays in the bucket where it belongs.
    */
-  private async place(repoId: string): Promise<void> {
-    let index: Attribution;
-    try {
-      index = await this.attribution.attribution(this.projectList());
-    } catch {
-      return; // The tree is standing and the repository is visible; a failed lookup changes nothing.
-    }
+  private place(repoId: string, index: Attribution): void {
     const owner = index.owners.get(repoId);
     if (!owner || this.expandedProjects().has(owner.id)) {
       return;
     }
-    const repositories = index.repositories.get(owner.id) ?? [];
-    this.repositories.update((map) => withEntry(map, owner.id, ready(repositories)));
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { project: [...toggled(this.expandedProjects(), owner.id)].join(',') },
@@ -267,21 +311,72 @@ export class TreePage {
     });
   }
 
-  /** The one button on this page: drop every cache and read the two roots again. */
+  /** The one button on this page: drop every cache and read the tree's roots again. */
   protected async reload(): Promise<void> {
     this.repositories.set(new Map());
     this.runs.set(new Map());
     this.placed.clear();
     this.attribution.forget();
-    await Promise.all([this.loadProjects(), this.loadRepositoryIds()]);
+    await Promise.all([this.loadProjects(), this.loadRepositoryIds(), this.loadSummaries()]);
   }
 
+  /**
+   * The spine, and then the index built on top of it. The two are one operation from the page's
+   * point of view: without the second the first cannot say which repository belongs where, and a
+   * tree that draws its projects before it knows that is a tree that is briefly wrong.
+   */
   protected async loadProjects(): Promise<void> {
     this.projects.set(LOADING);
+    this.index.set(LOADING);
     try {
-      this.projects.set(ready(await this.projectsApi.projects()));
+      const projects = await this.projectsApi.projects();
+      this.projects.set(ready(projects));
+      await this.loadIndex(projects);
     } catch (error) {
       this.projects.set(failed(error));
+      this.index.set(failed(error));
+    }
+  }
+
+  /**
+   * Ask every project for its repositories, once, and hand the answers to every row at the same
+   * time.
+   *
+   * The index is all-or-nothing by design — a partial one would report the missing project's
+   * repositories as claimed by nobody, which is a lie rather than a gap — so a failure here writes
+   * the *same* failure onto every project row. Each then offers its own retry, which is the one
+   * remaining path that loads a single project's repositories on its own.
+   */
+  private async loadIndex(projects: readonly ProjectDto[]): Promise<void> {
+    this.index.set(LOADING);
+    try {
+      const index = await this.attribution.attribution(projects);
+      this.index.set(ready(index));
+      this.repositories.set(
+        new Map(
+          projects.map((project) => [project.id, ready(index.repositories.get(project.id) ?? [])]),
+        ),
+      );
+    } catch (error) {
+      this.index.set(failed(error));
+      this.repositories.set(new Map(projects.map((project) => [project.id, failed(error)])));
+    }
+  }
+
+  /**
+   * The row badges. Read on load, and again only when the active column reports the platform's work
+   * in flight has changed — which is the one moment some repository's newest run became a different
+   * run. Refreshing on a timer of its own would re-read every repository on a platform where
+   * nothing had happened; refreshing on the active list means an idle platform pays nothing and a
+   * busy one is right within a poll.
+   */
+  protected async loadSummaries(): Promise<void> {
+    try {
+      const summaries = await this.ciApi.repositorySummaries();
+      this.summaries.set(new Map(summaries.map((entry) => [entry.repositoryId, entry])));
+    } catch {
+      // Annotations, not content. The last good badges stay, and a first read that never arrived
+      // leaves the rows bare rather than putting an error on every one of them.
     }
   }
 
@@ -326,12 +421,41 @@ export class TreePage {
     }
   }
 
+  /**
+   * A project's repositories. While the index is still in flight every open project reads as
+   * *loading* rather than as never-asked: the request that will answer it is already out, and an
+   * idle node draws nothing at all, which for a first level that is open by default would be a
+   * screenful of blank rows in the window before the index lands.
+   */
   protected repositoriesOf(projectId: string): Loadable<readonly RepositoryDto[]> {
-    return this.repositories().get(projectId) ?? IDLE;
+    const known = this.repositories().get(projectId);
+    if (known) {
+      return known;
+    }
+    return this.index().kind === 'loading' ? LOADING : IDLE;
   }
 
   protected runsOf(repoId: string): RunsNode {
     return this.runs().get(repoId) ?? UNVISITED;
+  }
+
+  /** The two headline runs for a row, or undefined for a repository qits-ci has no runs for. */
+  protected summaryOf(repoId: string): CiRepositorySummaryDto | undefined {
+    return this.summaries().get(repoId);
+  }
+
+  /**
+   * `main 9f96484 · 31 Jul 14:06` — what the main branch last built, and when.
+   *
+   * The day is on the badge and not only the clock. A bare `19:12` reads as *tonight* whatever it
+   * means, and the badge whose whole job is telling an operator how stale a repository's main branch
+   * is would then be at its most misleading exactly when the answer is "days ago". The branch name
+   * is the run's own rather than the word "main", because a repository whose main branch is called
+   * something else deserves to be told the truth about it. The instant is the build's finish, or its
+   * start for one still going — UTC, like every other timestamp this client draws.
+   */
+  protected mainLabel(run: CiRunDto): string {
+    return `${run.branch} ${shortSha(run.commitSha)} · ${formatDayTime(run.finishedAt ?? run.createdAt)}`;
   }
 
   /** `6 repositories`, once they are known; nothing before the project has been opened. */
@@ -357,13 +481,19 @@ export class TreePage {
 
   /**
    * A history entry on purpose, not `replaceUrl`: back should collapse what forward expanded.
-   * `merge` keeps the other level's parameter, and an empty set is written as null so the parameter
-   * disappears rather than lingering as `?project=`.
+   * `merge` keeps the other level's parameter.
+   *
+   * The two levels differ on what "nothing" looks like, and they have to. Repositories are closed by
+   * default, so an absent `?repo=` already says nothing is open and the parameter is dropped.
+   * Projects are open by default, so dropping `?project=` would re-open every one of them — the
+   * empty value is written instead, and it is the difference between "I have not said" and "I said
+   * none".
    */
   private navigate(key: 'project' | 'repo', ids: ReadonlySet<string>): void {
+    const empty = key === 'project' ? NONE_EXPANDED : null;
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { [key]: ids.size > 0 ? [...ids].join(',') : null },
+      queryParams: { [key]: ids.size > 0 ? [...ids].join(',') : empty },
       queryParamsHandling: 'merge',
     });
   }

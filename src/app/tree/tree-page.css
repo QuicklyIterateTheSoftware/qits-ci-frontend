@@ -20,6 +20,47 @@ h1 {
   color: #6b7280;
 }
 
+/* The tree and the right rail. One column on a phone — where the tree is the reason the page was
+   opened and the rail is a footnote under it — and two from the tablet breakpoint up. The rail is
+   inside the content area on purpose: QitsMainLayout's sidebar is the platform's left nav, and a
+   second navigation on the left would compete with it. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 16rem;
+  }
+
+  .rail {
+    position: sticky;
+    top: 1rem;
+  }
+}
+
+.main,
+.rail {
+  min-width: 0;
+}
+
+.rail {
+  padding-top: 0.15rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (min-width: 768px) {
+  .rail {
+    padding-top: 0;
+    padding-left: 1.25rem;
+    border-top: 0;
+    border-left: 1px solid #e5e7eb;
+  }
+}
+
 .page-error,
 .banner {
   display: flex;

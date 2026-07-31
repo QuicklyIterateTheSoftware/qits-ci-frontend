@@ -4,6 +4,11 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
  * One expandable row of the tree: a chevron, a label, an optional tag and an optional right-hand
  * meta line — and whatever the caller nests inside it.
  *
+ * The row carries a second, *named* slot — `[badges]` — for the annotations a caller wants beside
+ * the name rather than under it. It sits between the toggle and the right-hand tag, which is why
+ * the toggle no longer grows to fill the row: a spring after the badges pushes the tag and the meta
+ * to the edge, so a row with no badges is drawn exactly as it was.
+ *
  * The children are ordinary projected content and this component never wraps them in a condition.
  * That is the load-bearing part: the *caller* decides whether to build them, so a collapsed node
  * has no children in the DOM and — because building them is what starts a fetch — has made no
@@ -27,6 +32,8 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         <span class="chevron" aria-hidden="true">{{ expanded() ? '▾' : '▸' }}</span>
         <span class="label">{{ label() }}</span>
       </button>
+      <span class="badges"><ng-content select="[badges]" /></span>
+      <span class="spring"></span>
       @if (tag()) {
         <span class="tag">{{ tag() }}</span>
       }
@@ -52,7 +59,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       display: flex;
       align-items: baseline;
       gap: 0.4rem;
-      flex: 1 1 auto;
+      flex: 0 1 auto;
       min-width: 0;
       background: none;
       border: 0;
@@ -80,6 +87,16 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .badges {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.35rem;
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+    .spring {
+      flex: 1 1 auto;
     }
     .tag {
       flex: none;
