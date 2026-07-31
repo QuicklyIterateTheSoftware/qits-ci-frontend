@@ -1,6 +1,13 @@
 {
   "name": "qits-spa-ci",
   "version": "0.0.0",
+  "private": true,
+  "description": "The CI service's frontend: an Angular application that consumes @qits/ui-components from qits' own npm registry. It ships no image — qits-ci serves it via Quinoa at /ci/.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/QuicklyIterateTheSoftware/qits-spa-ci.git"
+  },
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -8,8 +15,6 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
-  "private": true,
-  "packageManager": "npm@10.9.4",
   "dependencies": {
     "@angular/common": "^21.2.0",
     "@angular/compiler": "^21.2.0",
