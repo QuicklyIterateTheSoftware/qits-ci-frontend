@@ -1,0 +1,148 @@
+<p class="back"><a routerLink="/">← All runs</a></p>
+
+@if (run().kind === 'loading') {
+  <app-async [state]="run()" loadingLabel="Loading the run" />
+}
+
+@if (missing()) {
+  <p class="missing" role="alert">No run {{ runId() }}.</p>
+  <p><a routerLink="/">Back to the run tree</a></p>
+} @else if (run().kind === 'error') {
+  <app-async [state]="run()" errorLabel="Could not load this run" (retry)="load()" />
+}
+
+@if (value(); as run) {
+  <header class="head">
+    <h1>
+      <span class="repo">{{ run.repoId }}</span> · {{ run.branch }} ·
+      <code>{{ shortSha(run.commitSha) }}</code>
+    </h1>
+    <div class="head-right">
+      <app-status-badge [status]="run.status" />
+      @if (!confirming() && run.status === 'RUNNING') {
+        <qits-button variant="secondary" size="sm" (pressed)="askCancel()">Cancel run</qits-button>
+      }
+    </div>
+  </header>
+
+  @if (confirming()) {
+    <p class="confirm" role="alert">
+      <span>Stop this run? Its current step is killed and the rest are skipped.</span>
+      <qits-button variant="primary" size="sm" [busy]="cancelling()" (pressed)="confirmCancel()">
+        Yes, cancel it
+      </qits-button>
+      <qits-button variant="ghost" size="sm" (pressed)="dismissCancel()">Keep running</qits-button>
+    </p>
+  }
+
+  @if (cancelNote()) {
+    <p class="note" role="status">{{ cancelNote() }}</p>
+  }
+
+  <dl class="facts">
+    <dt>Run</dt>
+    <dd>
+      <code>{{ run.id }}</code>
+    </dd>
+
+    <dt>Trigger</dt>
+    <dd>
+      {{ run.triggerType }}
+      @if (run.triggerEventName) {
+        · {{ run.triggerEventName }}
+      }
+      @if (run.triggerEventId) {
+        · <code>{{ run.triggerEventId }}</code>
+      }
+    </dd>
+
+    <dt>Config</dt>
+    <dd>
+      <code>{{ run.configPath || none }}</code>
+    </dd>
+
+    <dt>Started</dt>
+    <dd>{{ formatInstant(run.createdAt) }}</dd>
+
+    <dt>Finished</dt>
+    <dd>{{ run.finishedAt ? formatClock(run.finishedAt) : none }}</dd>
+
+    <dt>Duration</dt>
+    <dd>{{ runDuration(run) }}</dd>
+
+    <dt>Daemon</dt>
+    <dd>{{ run.daemonVersion || none }}</dd>
+
+    <dt>Repository</dt>
+    <dd>
+      <a [routerLink]="['/']" [queryParams]="{ repo: run.repoId }">{{ run.repoId }}</a>
+    </dd>
+  </dl>
+
+  <section class="steps">
+    <h2>
+      Steps
+      @if (running()) {
+        <span class="following" role="status">
+          ⟳ following
+          @if (followedFor()) {
+            · updated {{ followedFor() }} ago
+          }
+        </span>
+      }
+      @if (pollProblem()) {
+        <span class="stale">· last read failed ({{ pollProblem() }})</span>
+      }
+    </h2>
+
+    <ol class="step-list">
+      @for (step of steps(); track step.stepIndex) {
+        <li>
+          <button
+            type="button"
+            class="step"
+            [attr.aria-expanded]="isStepOpen(step.stepIndex)"
+            (click)="toggleStep(step.stepIndex)"
+          >
+            <span class="chevron" aria-hidden="true">{{
+              isStepOpen(step.stepIndex) ? '▾' : '▸'
+            }}</span>
+            <span class="index">{{ step.stepIndex }}</span>
+            <app-status-badge [status]="step.status" />
+            <code class="image">{{ step.image }}</code>
+            <span class="exit">{{ step.exitCode === null ? none : 'exit ' + step.exitCode }}</span>
+            <span class="when">{{ formatClock(step.startedAt) }}</span>
+            <span class="duration">{{ stepDuration(step) }}</span>
+          </button>
+          @if (isStepOpen(step.stepIndex)) {
+            <pre class="output">{{ stripAnsi(step.output || '') }}</pre>
+          }
+        </li>
+      } @empty {
+        @if (!running()) {
+          <li class="no-steps">This run recorded no steps.</li>
+        }
+      }
+
+      @if (run.live; as live) {
+        <li>
+          <button
+            type="button"
+            class="step"
+            [attr.aria-expanded]="liveOpen()"
+            (click)="toggleLive()"
+          >
+            <span class="chevron" aria-hidden="true">{{ liveOpen() ? '▾' : '▸' }}</span>
+            <span class="index">{{ live.stepIndex }}</span>
+            <app-status-badge status="RUNNING" />
+            <span class="live-label">(step {{ live.stepIndex }} · live)</span>
+            <span class="duration">{{ liveElapsed() }}</span>
+          </button>
+          @if (liveOpen()) {
+            <pre class="output output-live">{{ stripAnsi(live.output) }}</pre>
+          }
+        </li>
+      }
+    </ol>
+  </section>
+}

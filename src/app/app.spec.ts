@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideLocationMocks } from '@angular/common/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -13,7 +15,14 @@ import { routes } from './app.routes';
 describe('App', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes), provideLocationMocks()],
+      // The root route is now the tree, and the tree reads two services on arrival — so this
+      // suite needs a backend even though what it asserts is the shell and the chrome.
+      providers: [
+        provideRouter(routes),
+        provideLocationMocks(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
   });
 

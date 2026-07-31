@@ -1,0 +1,185 @@
+:host {
+  display: block;
+}
+
+.back {
+  margin: 0 0 0.75rem;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.repo {
+  font-weight: 700;
+}
+
+.head-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.missing {
+  margin: 1rem 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+.confirm,
+.note {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.375rem;
+}
+
+.confirm {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.note {
+  color: #374151;
+  background: #f3f4f6;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.15rem 1rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.facts dt {
+  color: #6b7280;
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.steps h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+
+.following {
+  color: #2563eb;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.stale {
+  color: #b45309;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  background: #fff;
+}
+
+.step-list > li + li {
+  border-top: 1px solid #f3f4f6;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step:hover {
+  background: #f9fafb;
+}
+
+.step:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: -2px;
+}
+
+.chevron {
+  color: #6b7280;
+  width: 0.9rem;
+}
+
+.index {
+  color: #6b7280;
+  width: 1.2rem;
+}
+
+.image {
+  color: #4b5563;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exit,
+.when,
+.duration {
+  color: #6b7280;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.duration {
+  margin-left: auto;
+}
+
+.no-steps {
+  padding: 0.5rem 0.6rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.output {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  max-height: 26rem;
+  overflow: auto;
+  background: #111827;
+  color: #e5e7eb;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.output-live {
+  border-left: 3px solid #2563eb;
+}

@@ -1,0 +1,115 @@
+<header class="head">
+  <div>
+    <h1>CI runs</h1>
+    <p class="lede">Projects → repository → trigger. {{ summary() }}</p>
+  </div>
+  <qits-button variant="secondary" size="sm" (pressed)="reload()">Refresh</qits-button>
+</header>
+
+@if (unrecoverable()) {
+  <p class="page-error" role="alert">
+    <span>⚠ Could not load the tree — {{ rootError() }}.</span>
+    <qits-button variant="secondary" size="sm" (pressed)="reload()">Retry</qits-button>
+  </p>
+} @else {
+  @if (projectsBanner()) {
+    <p class="banner" role="alert">
+      <span>
+        ⚠ Projects are unavailable — {{ projectsBanner() }}. Showing the CI activity qits-ci knows
+        about.
+      </span>
+      <qits-button variant="ghost" size="sm" (pressed)="loadProjects()">Retry</qits-button>
+    </p>
+  }
+
+  @if (projects().kind === 'loading') {
+    <app-async [state]="projects()" loadingLabel="Loading projects" />
+  }
+
+  <ul class="tree">
+    @for (project of projectList(); track project.id) {
+      <li>
+        <app-tree-node
+          [label]="project.name"
+          [meta]="projectMeta(project.id)"
+          [expanded]="expandedProjects().has(project.id)"
+          (toggled)="toggleProject(project.id)"
+        >
+          @if (expandedProjects().has(project.id)) {
+            @let repositories = repositoriesOf(project.id);
+            <app-async
+              [state]="repositories"
+              loadingLabel="Loading repositories"
+              errorLabel="Could not load repositories"
+              (retry)="loadRepositories(project.id)"
+            />
+            @if (repositories.kind === 'ready') {
+              @if (repositories.value.length === 0) {
+                <app-empty message="This project has no repositories." />
+              }
+              @for (repository of repositories.value; track repository.id) {
+                <app-tree-node
+                  [label]="repositoryLabel(repository.url)"
+                  [tag]="repository.archetype"
+                  [meta]="repository.mainBranch"
+                  [expanded]="expandedRepos().has(repository.id)"
+                  (toggled)="toggleRepository(repository.id)"
+                >
+                  @if (expandedRepos().has(repository.id)) {
+                    <app-repo-runs
+                      [node]="runsOf(repository.id)"
+                      (reload)="loadRuns(repository.id)"
+                      (showAll)="loadAllRuns(repository.id)"
+                    />
+                  }
+                </app-tree-node>
+              }
+            }
+          }
+        </app-tree-node>
+      </li>
+    } @empty {
+      @if (projects().kind === 'ready') {
+        <li><app-empty message="No projects yet." /></li>
+      }
+    }
+
+    <li class="bucket">
+      <app-tree-node
+        label="Not claimed by any project"
+        [meta]="knownRepositoryCount() + ' repositories with CI runs'"
+        [expanded]="bucketOpen()"
+        (toggled)="toggleBucket()"
+      >
+        @if (bucketOpen()) {
+          <app-async
+            [state]="repositoryIds()"
+            loadingLabel="Loading the repositories qits-ci knows"
+            errorLabel="Could not load the repositories qits-ci knows"
+            (retry)="loadRepositoryIds()"
+          />
+          @if (repositoryIds().kind === 'ready') {
+            @if (unclaimed().length === 0) {
+              <app-empty message="Every repository with CI runs is claimed by a project." />
+            }
+            @for (repoId of unclaimed(); track repoId) {
+              <app-tree-node
+                [label]="repoId"
+                [expanded]="expandedRepos().has(repoId)"
+                (toggled)="toggleRepository(repoId)"
+              >
+                @if (expandedRepos().has(repoId)) {
+                  <app-repo-runs
+                    [node]="runsOf(repoId)"
+                    (reload)="loadRuns(repoId)"
+                    (showAll)="loadAllRuns(repoId)"
+                  />
+                }
+              </app-tree-node>
+            }
+          }
+        }
+      </app-tree-node>
+    </li>
+  </ul>
+}
