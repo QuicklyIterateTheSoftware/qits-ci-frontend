@@ -9,6 +9,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { QitsButton } from '@qits/ui-components';
+import { RepositoryAttribution, type Attribution } from '../api/attribution';
 import { CiApi } from '../api/ci-api';
 import type { ProjectDto, RepositoryDto } from '../api/dto';
 import { ProjectsApi } from '../api/projects-api';
@@ -51,7 +52,9 @@ function withEntry<T>(map: ReadonlyMap<string, T>, key: string, value: T): Reado
  * cost `1 + P + R` requests before the first pixel, with every run list unbounded; the user's
  * clicks are the bound instead, so there is no fan-out budget to tune. On load this page makes
  * exactly two requests, and both are flat lists: the projects, and the repository ids qits-ci has
- * runs for.
+ * runs for. A URL that names a repository nothing has opened buys one more thing — the attribution
+ * lookup that finds its project — and that is the single deliberate exception, because the
+ * alternative is a deep link landing on a tree that cannot show what it pointed at.
  *
  * **The second of those is what makes the tree honest.** qits-ci keys a run by `repoId`, which is
  * the shared git-host directory name; a repository qits-projects provisioned has that name as its
@@ -77,6 +80,7 @@ function withEntry<T>(map: ReadonlyMap<string, T>, key: string, value: T): Reado
 export class TreePage {
   private readonly projectsApi = inject(ProjectsApi);
   private readonly ciApi = inject(CiApi);
+  private readonly attribution = inject(RepositoryAttribution);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -106,6 +110,20 @@ export class TreePage {
   private readonly queryParams = toSignal(this.route.queryParamMap, {
     initialValue: convertToParamMap({}),
   });
+
+  /**
+   * The `?repo=` ids this page was *entered* with, as opposed to the ones a click opened.
+   *
+   * Only these are looked up. A repository the user expanded by clicking is already on screen under
+   * whatever claims it, so there is nothing to place; a repository that arrived in the URL — from
+   * the run page's link, a bookmark, or a pasted address — may belong to a project nothing has
+   * opened, and without the lookup it would sit in the unattributed bucket beside a header wrongly
+   * counting it as unclaimed. That is exactly what the bare `?repo=` link produced live.
+   */
+  private readonly entryRepos = idSet(this.route.snapshot.queryParamMap.get('repo'));
+
+  /** Repository ids already put through the lookup, so it happens at most once for each. */
+  private readonly placed = new Set<string>();
 
   protected readonly expandedProjects = computed(() => idSet(this.queryParams().get('project')));
   protected readonly expandedRepos = computed(() => idSet(this.queryParams().get('repo')));
@@ -193,12 +211,68 @@ export class TreePage {
         }
       }
     });
+
+    // A repository the URL names but no opened project claims gets its owner looked up, once. It
+    // runs after the projects have answered — and after every already-expanded project has answered
+    // too, so a link that already named the right project costs no lookup at all.
+    effect(() => {
+      if (this.projects().kind !== 'ready' || this.awaitingRepositories()) {
+        return;
+      }
+      for (const repoId of this.entryRepos) {
+        if (!this.claimed().has(repoId) && !this.placed.has(repoId)) {
+          this.placed.add(repoId);
+          void this.place(repoId);
+        }
+      }
+    });
+  }
+
+  /** True while a project the URL says is open has not answered with its repositories yet. */
+  private awaitingRepositories(): boolean {
+    return [...this.expandedProjects()].some((projectId) => {
+      const state = this.repositoriesOf(projectId);
+      return state.kind === 'idle' || state.kind === 'loading';
+    });
+  }
+
+  /**
+   * Find the project that claims a repository and open it, so a `?repo=` alone lands where a
+   * `?project=&repo=` would have.
+   *
+   * The URL is *replaced* rather than pushed: this is the page repairing an address, not the user
+   * expanding a node, and back should return to wherever they came from rather than stepping
+   * through a correction they never made. The owner's repositories are seeded from the index the
+   * lookup already built, so opening it costs no further request. A repository the index does not
+   * name is genuinely unattributed, and it stays in the bucket where it belongs.
+   */
+  private async place(repoId: string): Promise<void> {
+    let index: Attribution;
+    try {
+      index = await this.attribution.attribution(this.projectList());
+    } catch {
+      return; // The tree is standing and the repository is visible; a failed lookup changes nothing.
+    }
+    const owner = index.owners.get(repoId);
+    if (!owner || this.expandedProjects().has(owner.id)) {
+      return;
+    }
+    const repositories = index.repositories.get(owner.id) ?? [];
+    this.repositories.update((map) => withEntry(map, owner.id, ready(repositories)));
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { project: [...toggled(this.expandedProjects(), owner.id)].join(',') },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   /** The one button on this page: drop every cache and read the two roots again. */
   protected async reload(): Promise<void> {
     this.repositories.set(new Map());
     this.runs.set(new Map());
+    this.placed.clear();
+    this.attribution.forget();
     await Promise.all([this.loadProjects(), this.loadRepositoryIds()]);
   }
 

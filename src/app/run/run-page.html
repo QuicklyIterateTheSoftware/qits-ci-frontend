@@ -35,6 +35,10 @@
     </p>
   }
 
+  @if (cancelRequested()) {
+    <p class="note" role="status">Cancelling — the run stops once its container answers.</p>
+  }
+
   @if (cancelNote()) {
     <p class="note" role="status">{{ cancelNote() }}</p>
   }
@@ -75,7 +79,12 @@
 
     <dt>Repository</dt>
     <dd>
-      <a [routerLink]="['/']" [queryParams]="{ repo: run.repoId }">{{ run.repoId }}</a>
+      <a [routerLink]="['/']" [queryParams]="repoQuery(run.repoId)">{{ run.repoId }}</a>
+      @if (owner(); as project) {
+        · project {{ project.name }}
+      } @else if (unattributed()) {
+        · not claimed by any project
+      }
     </dd>
   </dl>
 

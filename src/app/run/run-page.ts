@@ -11,8 +11,9 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink, convertToParamMap } from '@angular/router';
 import { QitsButton } from '@qits/ui-components';
+import { RepositoryAttribution, type Attribution } from '../api/attribution';
 import { CiApi } from '../api/ci-api';
-import { isTerminal, type CiRunDto, type CiStepDto } from '../api/dto';
+import { isTerminal, type CiRunDto, type CiStepDto, type ProjectDto } from '../api/dto';
 import { Async } from '../ui/async';
 import {
   NONE,
@@ -48,6 +49,7 @@ export const POLL_INTERVAL_MS = 3000;
 })
 export class RunPage {
   private readonly api = inject(CiApi);
+  private readonly attribution = inject(RepositoryAttribution);
   private readonly route = inject(ActivatedRoute);
   private readonly document = inject(DOCUMENT);
 
@@ -66,6 +68,21 @@ export class RunPage {
 
   protected readonly run = signal<Loadable<CiRunDto>>(LOADING);
 
+  /**
+   * Who claims this run's repository, looked up beside the run itself.
+   *
+   * The design said this page makes a single request, and that was wrong in a way only the live
+   * platform showed: a run knows its `repoId` and nothing else, so a page that renders only that id
+   * can offer no link back into the tree except `?repo=<id>` — which lands on a tree with nothing
+   * expanded, and beside a bucket header still claiming every repository is unattributed. The join
+   * costs `1 + P` small requests, it is cached for the whole application, and it runs in parallel
+   * with the run read rather than after it, so it delays nothing on screen.
+   *
+   * A failed lookup says *nothing*: the link falls back to the bare `?repo=`, and the page does not
+   * claim the repository is unattributed on the strength of a request that never answered.
+   */
+  private readonly claim = signal<Loadable<Attribution>>(LOADING);
+
   /** When the last answer arrived, so “updated 2s ago” is measured rather than claimed. */
   private readonly updatedAt = signal(0);
 
@@ -83,6 +100,17 @@ export class RunPage {
 
   protected readonly confirming = signal(false);
   protected readonly cancelling = signal(false);
+
+  /**
+   * The optimistic banner: the cancel was accepted and the run has not stopped yet.
+   *
+   * It is a claim about the future, so it is retired by the first read that shows a terminal run —
+   * anything else leaves "Cancelling…" sitting above a run that finished minutes ago, which is the
+   * page contradicting itself.
+   */
+  protected readonly cancelRequested = signal(false);
+
+  /** The outcome of a cancel that did not simply work: a 409, or a failure worth reporting. */
   protected readonly cancelNote = signal('');
 
   private pollHandle: ReturnType<typeof setInterval> | null = null;
@@ -106,6 +134,18 @@ export class RunPage {
 
   protected readonly steps = computed<readonly CiStepDto[]>(() => this.value()?.steps ?? []);
 
+  /** The project that claims this run's repository, once the lookup has answered and named one. */
+  protected readonly owner = computed<ProjectDto | null>(() => {
+    const claim = this.claim();
+    const run = this.value();
+    return claim.kind === 'ready' && run ? (claim.value.owners.get(run.repoId) ?? null) : null;
+  });
+
+  /** Said only on a lookup that succeeded and named nobody. A failed lookup claims nothing. */
+  protected readonly unattributed = computed(
+    () => this.claim().kind === 'ready' && this.value() !== null && this.owner() === null,
+  );
+
   /** `updated 2s ago`, and only while there is something to follow. */
   protected readonly followedFor = computed(() => {
     const updated = this.updatedAt();
@@ -113,6 +153,10 @@ export class RunPage {
   });
 
   constructor() {
+    // Independent of the run id, and cached application-wide, so it is asked for once and never
+    // again while the tab lives — including across a navigation from one run to another.
+    void this.loadClaim();
+
     // The id comes from the URL, so a navigation between two runs must reset everything the old
     // one owned — including which step panes were open.
     effect(() => {
@@ -138,12 +182,17 @@ export class RunPage {
     this.liveSince.set(0);
     this.pollProblem.set('');
     this.cancelNote.set('');
+    this.cancelRequested.set(false);
     this.confirming.set(false);
     this.openSteps.set(new Set());
     this.stepsInitialised = false;
   }
 
-  /** The first read, and the one the retry re-issues. A single request; it needs no ancestors. */
+  /**
+   * The first read, and the one the retry re-issues. It needs no ancestors: a run is addressed by
+   * its runId alone, and this request answers the whole page except who owns the repository, which
+   * `loadClaim` asks about separately and in parallel.
+   */
   protected async load(runId = this.runId()): Promise<void> {
     this.run.set(LOADING);
     try {
@@ -152,6 +201,24 @@ export class RunPage {
       this.run.set(failed(error));
     }
     this.syncPolling();
+  }
+
+  /** The attribution lookup. It is not retried and has no error state on screen — only silence. */
+  private async loadClaim(): Promise<void> {
+    try {
+      this.claim.set(ready(await this.attribution.attribution()));
+    } catch (error) {
+      this.claim.set(failed(error));
+    }
+  }
+
+  /**
+   * Where the repository link points. Two parameters when the owner is known, so following it opens
+   * the tree at the right branch; one when it is not, which is the bucket the tree draws anyway.
+   */
+  protected repoQuery(repoId: string): Record<string, string> {
+    const owner = this.owner();
+    return owner ? { project: owner.id, repo: repoId } : { repo: repoId };
   }
 
   /**
@@ -179,6 +246,11 @@ export class RunPage {
     const previous = this.value();
     this.run.set(ready(run));
     this.updatedAt.set(Date.now());
+    if (isTerminal(run.status)) {
+      // The run stopped, so "Cancelling…" is no longer true of anything on screen. The status badge
+      // and the missing cancel button say the rest.
+      this.cancelRequested.set(false);
+    }
     if (run.live && run.live.stepIndex !== previous?.live?.stepIndex) {
       this.liveSince.set(Date.now());
     }
@@ -270,7 +342,8 @@ export class RunPage {
    * A 409 is not an error to report: it means the run finished between the render and the click,
    * which is a race the server is right to refuse and the client is right to shrug at. Either way
    * the next read is the truth, so both paths end in a poll and the button disappears when the run
-   * turns terminal — the state is reconciled, never assumed.
+   * turns terminal — the state is reconciled, never assumed. So is the banner: `cancelRequested` is
+   * set here and cleared by whichever read first sees the run stop.
    */
   protected async confirmCancel(): Promise<void> {
     const run = this.value();
@@ -281,8 +354,9 @@ export class RunPage {
     this.cancelNote.set('');
     try {
       await this.api.cancel(run.id);
-      this.cancelNote.set('Cancelling — the run stops once its container answers.');
+      this.cancelRequested.set(true);
     } catch (error) {
+      this.cancelRequested.set(false);
       this.cancelNote.set(
         statusOf(error) === 409
           ? 'This run had already finished, so there was nothing to stop.'

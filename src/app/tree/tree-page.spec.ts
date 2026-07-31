@@ -93,9 +93,16 @@ describe('TreePage', () => {
     await settle();
   }
 
-  /** Let the flushed responses land, their signals write, and change detection run. */
+  /**
+   * Let the flushed responses land, their signals write, and change detection run.
+   *
+   * The rounds drain microtasks as well as waiting for stability: the attribution lookup that places
+   * a deep-linked repository is a promise chain several links long, and an app that is *stable* is
+   * not the same as one whose promises have all settled.
+   */
   async function settle(): Promise<void> {
-    for (let round = 0; round < 3; round += 1) {
+    for (let round = 0; round < 6; round += 1) {
+      await Promise.resolve();
       await harness.fixture.whenStable();
     }
   }
@@ -343,6 +350,62 @@ describe('TreePage', () => {
     await settle();
 
     expect(text()).toContain('r1');
+    // The URL already named the project, so nothing has to be looked up to place the repository.
+    http.verify();
+  });
+
+  /**
+   * A `?repo=` with no `?project=` — a bookmark, or a link from a page that knew the repository and
+   * not its owner. Without the lookup this landed on a tree with nothing open, the repository in the
+   * unattributed bucket, and a header counting it as claimed by nobody. All three were wrong.
+   */
+  it('finds the project that owns a deep-linked repository and opens it there', async () => {
+    await open('/?repo=qits-ci');
+    await flushRoots([project('p1', 'qits')], ['qits-ci', 'legacy-build-box']);
+
+    // The lookup asks each project for its repositories — and only that, because the project list
+    // it would otherwise start from is the one this page already holds and hands over.
+    flushRepositories('p1', [repository('qits-ci', 'p1')]);
+    await settle();
+
+    const router = TestBed.inject(Router);
+    expect(router.url).toContain('project=p1');
+    // The repository is under its project, not in the bucket, and the runs load from there.
+    expect(labels('.bucket .label')).not.toContain('qits-ci');
+    expect(labels('.bucket .label')).toContain('legacy-build-box');
+    expectRuns('qits-ci').flush({ runs: [run('r1')] });
+    await settle();
+
+    expect(text()).toContain('r1');
+    // The owner's repositories came from the index the lookup already built, not a second read.
+    http.verify();
+  });
+
+  it('leaves a genuinely unclaimed deep-linked repository in the bucket', async () => {
+    await open('/?repo=legacy-build-box');
+    await flushRoots([project('p1', 'qits')], ['legacy-build-box']);
+
+    flushRepositories('p1', [repository('qits-ci', 'p1')]);
+    await settle();
+
+    const router = TestBed.inject(Router);
+    expect(router.url).not.toContain('project=');
+    expect(labels('.bucket .label')).toContain('legacy-build-box');
+
+    expectRuns('legacy-build-box').flush({ runs: [run('r1')] });
+    await settle();
+    expect(text()).toContain('r1');
+  });
+
+  it('does not look anything up for a repository the user opened by clicking', async () => {
+    await open();
+    await flushRoots([project('p1', 'qits')], ['qits-ci']);
+
+    await click('qits-ci');
+    expectRuns('qits-ci').flush({ runs: [run('r1')] });
+    await settle();
+
+    // A click is not a deep link: what the user opened is already on screen under what claims it.
     http.verify();
   });
 });

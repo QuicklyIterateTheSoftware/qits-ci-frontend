@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from '../app.routes';
-import type { CiRunDto, CiStepDto } from '../api/dto';
+import type { CiRunDto, CiStepDto, ProjectDto } from '../api/dto';
 import { POLL_INTERVAL_MS } from './run-page';
 
 /**
@@ -16,6 +16,10 @@ import { POLL_INTERVAL_MS } from './run-page';
  * forever. So the two load-bearing assertions here are negative — no request after a terminal
  * status, and no request while the tab is hidden — and both are made with fake timers so they are
  * about the schedule rather than about wall-clock luck.
+ *
+ * Every spec answers the attribution lookup as well as the run read, because the page asks for both
+ * at once: the run is the page, and the project that claims its repository is what makes the link
+ * back into the tree land somewhere useful.
  */
 describe('RunPage', () => {
   let http: HttpTestingController;
@@ -90,14 +94,60 @@ describe('RunPage', () => {
     await settle();
   }
 
+  /**
+   * Let the flushed responses land, their signals write, and change detection run.
+   *
+   * The rounds drain microtasks as well as waiting for stability, because the attribution lookup is
+   * a promise chain four links long — a flushed response, a mapped envelope, a `Promise.all`, and
+   * the awaiting page — and an app that is *stable* is not the same as one whose promises have all
+   * settled. Too few rounds here reads as a component that never rendered its answer.
+   */
   async function settle(): Promise<void> {
-    for (let round = 0; round < 3; round += 1) {
+    for (let round = 0; round < 6; round += 1) {
+      await Promise.resolve();
       await harness.fixture.whenStable();
     }
   }
 
   function expectRun(runId = 'da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61') {
     return http.expectOne(`/ci/api/runs/${runId}`);
+  }
+
+  const project = (id: string, name: string): ProjectDto => ({
+    id,
+    name,
+    slug: name,
+    description: null,
+    dns: null,
+  });
+
+  /**
+   * Answer the attribution lookup: the project list, then each project's repositories. `claims`
+   * maps a project id to the repository ids it owns, and the default is the platform's own shape —
+   * a `qits` project that claims `qits-ci`.
+   */
+  async function flushAttribution(
+    claims: Readonly<Record<string, readonly string[]>> = { p1: ['qits-ci'] },
+  ): Promise<void> {
+    const projects = Object.keys(claims).map((id) => project(id, id === 'p1' ? 'qits' : id));
+    http
+      .expectOne('/projects/api/projects')
+      .flush({ entries: projects.map((entry) => ({ project: entry })) });
+    await settle();
+    for (const entry of projects) {
+      http.expectOne(`/projects/api/projects/${entry.id}/repositories`).flush({
+        entries: (claims[entry.id] ?? []).map((repoId) => ({
+          repository: {
+            id: repoId,
+            url: `https://example.test/QuicklyIterate/${repoId}.git`,
+            mainBranch: 'main',
+            archetype: 'SERVICE',
+            projectId: entry.id,
+          },
+        })),
+      });
+    }
+    await settle();
   }
 
   /**
@@ -123,10 +173,11 @@ describe('RunPage', () => {
     await settle();
   }
 
-  it('renders the run, its provenance and its steps from one request', async () => {
+  it('renders the run, its provenance and its steps', async () => {
     await open();
     expectRun().flush(run());
     await settle();
+    await flushAttribution();
 
     expect(text()).toContain('qits-ci');
     expect(text()).toContain('9f2c1ab');
@@ -145,6 +196,7 @@ describe('RunPage', () => {
       .expectOne('/ci/api/runs/nope')
       .flush({ message: 'No such run' }, { status: 404, statusText: 'Not Found' });
     await settle();
+    await flushAttribution();
 
     expect(text()).toContain('No run nope.');
     expect(page().querySelector('a[href="/"]')).not.toBeNull();
@@ -154,6 +206,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(null, { status: 503, statusText: 'Down' });
     await settle();
+    await flushAttribution();
 
     expect(text()).toContain('Could not load this run — 503');
     await click('Retry');
@@ -168,6 +221,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run());
     await settle();
+    await flushAttribution();
 
     await tick(POLL_INTERVAL_MS * 4);
     http.verify();
@@ -184,6 +238,7 @@ describe('RunPage', () => {
       }),
     );
     await settle();
+    await flushAttribution();
 
     // The live step is drawn from two fields and invents nothing else.
     expect(text()).toContain('(step 1 · live)');
@@ -212,6 +267,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
     await settle();
+    await flushAttribution();
 
     setHidden(true);
     document.dispatchEvent(new Event('visibilitychange'));
@@ -237,6 +293,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
     await settle();
+    await flushAttribution();
 
     await tick(POLL_INTERVAL_MS);
     expectRun().flush(null, { status: 503, statusText: 'Down' });
@@ -255,6 +312,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run());
     await settle();
+    await flushAttribution();
     expect(buttons().some((button) => (button.textContent ?? '').includes('Cancel run'))).toBe(
       false,
     );
@@ -264,6 +322,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
     await settle();
+    await flushAttribution();
 
     await click('Cancel run');
     expect(text()).toContain('Stop this run?');
@@ -290,6 +349,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
     await settle();
+    await flushAttribution();
 
     await click('Cancel run');
     await click('Yes, cancel it');
@@ -309,6 +369,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
     await settle();
+    await flushAttribution();
 
     await click('Cancel run');
     await click('Keep running');
@@ -318,5 +379,75 @@ describe('RunPage', () => {
       true,
     );
     http.verify();
+  });
+
+  /**
+   * The optimistic banner is the one piece of state this page asserts rather than reads, so it is
+   * also the one that can outlive its truth. Measured live: a cancel left "Cancelling…" on screen
+   * beside a run that had already reconciled to FAILED, because nothing retired it.
+   */
+  it('retires the “Cancelling…” banner the moment the run reconciles to terminal', async () => {
+    useIntervalFakes();
+    await open();
+    expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
+    await settle();
+    await flushAttribution();
+
+    await click('Cancel run');
+    await click('Yes, cancel it');
+    http
+      .expectOne('/ci/api/runs/da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61/cancel')
+      .flush(null, { status: 202, statusText: 'Accepted' });
+    await settle();
+
+    // The read that follows the cancel still shows a running run: the banner is true, and stays.
+    expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
+    await settle();
+    expect(text()).toContain('Cancelling');
+
+    await tick(POLL_INTERVAL_MS);
+    expectRun().flush(run({ status: 'FAILED', finishedAt: '2026-07-31T14:07:00Z' }));
+    await settle();
+
+    expect(text()).not.toContain('Cancelling');
+    expect(text()).toContain('FAILED');
+  });
+
+  /** The repository link, which is the only anchor in the provenance block. */
+  function repoLink(): HTMLAnchorElement | null {
+    return page().querySelector('.facts a');
+  }
+
+  it('names the project that claims the repository, and points the tree at it', async () => {
+    await open();
+    expectRun().flush(run());
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('· project qits');
+    expect(repoLink()?.getAttribute('href')).toBe('/?project=p1&repo=qits-ci');
+  });
+
+  it('says so when no project claims the repository, and links to it alone', async () => {
+    await open();
+    expectRun().flush(run({ repoId: 'legacy-build-box' }));
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('· not claimed by any project');
+    expect(repoLink()?.getAttribute('href')).toBe('/?repo=legacy-build-box');
+  });
+
+  it('claims nothing at all when the lookup itself fails', async () => {
+    await open();
+    expectRun().flush(run());
+    await settle();
+    http.expectOne('/projects/api/projects').flush(null, { status: 503, statusText: 'Down' });
+    await settle();
+
+    // Neither an owner nor a denial: a request that never answered is not evidence of either.
+    expect(text()).not.toContain('project qits');
+    expect(text()).not.toContain('not claimed by any project');
+    expect(repoLink()?.getAttribute('href')).toBe('/?repo=qits-ci');
   });
 });
