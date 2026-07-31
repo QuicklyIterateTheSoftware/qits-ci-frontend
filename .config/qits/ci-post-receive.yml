@@ -1,0 +1,63 @@
+# The pipeline qits-ci runs on every push to a tracked branch of this repository.
+#
+# One ordinary sandboxed step, and no image: this repository does not ship a container. The app is
+# packaged and served by qits-ci, which carries this repo as a git submodule at
+# service/src/main/webui — Quinoa's ui-dir — and builds it into the service image at /ci/, so this
+# pipeline's job is to keep main green (install, lint, test, build), and qits-ci's own pipeline is
+# where the bundle becomes deployable.
+#
+# The recipe below is qits-spa-home's, and that repo is where it is maintained; the two should keep
+# matching. Unlike the other service SPAs there is no divergence to note: this repository carries an
+# eslint.config.js and a `lint` script, so the `npm run lint` line the sibling recipes document as
+# missing is present here.
+steps:
+  - image: qits/build-images/node-base:latest
+    timeout-seconds: 1800
+    script: |
+      # The daemon runs this with `bash -c` and no -e, so without this an early failure would be
+      # swallowed by the next command's exit code. -u is load-bearing too: an unset registry var
+      # must stop the step, not quietly resolve the @qits scope against npmjs.org, where these
+      # packages do not exist and never will.
+      set -eu
+
+      # THE LOCKFILE is the one file this step edits, and npm leaves no alternative.
+      #
+      # npm pins a full resolved URL per package, and this lockfile is generated on the deployment
+      # host, so every entry names localhost:8081 — an address that does not exist in this
+      # container. `npm ci` fetches tarballs by that URL and never asks the configured registry for
+      # them, so the environment below does not reach them: without this swap the install dies on
+      # connection refused. The paths are identical on both addresses, so replacing the ORIGIN and
+      # keeping the path is all it takes, and the integrity hashes are what make that safe — bytes
+      # from the other address must still hash the same. The clone is this step's own; nothing is
+      # edited that anyone will ever read again.
+      #
+      # npm's own knob for exactly this, `--replace-registry-host=always`, cannot do it against a
+      # registry mounted under a path. @npmcli/arborist glues rather than resolves (reify.js:
+      # `registry.slice(0, -1) + resolvedURL.pathname`), so
+      # http://qits-artifacts:8080/artifacts/npm/npmjs/ + /artifacts/npm/npmjs/zone.js/-/…tgz comes
+      # out as …/artifacts/npm/npmjs/artifacts/npm/npmjs/zone.js/-/…tgz and every tarball 404s.
+      # Measured on npm 10.9.4.
+      #
+      # The origin is derived from the injected env rather than spelled here: no repository states
+      # a deployment's addresses, and the one address this repo does state (localhost:8081, in
+      # .npmrc, for a developer on the host) is the one being replaced. Both registries are the
+      # same qits-artifacts, so one origin covers the cached npmjs tarballs and the @qits ones
+      # alike; were that ever to stop being true, the scoped tarballs would 404 rather than resolve
+      # to something wrong.
+      npm_origin=$(node -p 'new URL(process.env.QITS_NPM_PROXY_URL).origin')
+      sed -i -E "s#(\"resolved\": \")https?://[^/\"]+#\1$npm_origin#" package-lock.json
+
+      # ENVIRONMENT, not a file. This repository COMMITS an .npmrc (localhost:8081, right for a
+      # developer on the host), and npm ranks a project .npmrc ABOVE ~/.npmrc — so the
+      # `cat > ~/.npmrc` preamble the library repos use would be written and silently ignored.
+      # `npm_config_*` environment outranks both files, so it wins without touching the tree.
+      env npm_config_registry="$QITS_NPM_PROXY_URL" \
+          "npm_config_@qits:registry=$QITS_NPM_REGISTRY_URL" \
+          npm ci --no-audit --no-fund
+
+      npm run lint
+
+      # The jsdom target. This image has no browser and CI is not the place to download one.
+      npm run test
+
+      npm run build
