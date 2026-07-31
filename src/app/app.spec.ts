@@ -30,7 +30,7 @@ describe('App', () => {
     const harness = await RouterTestingHarness.create('/');
     const layout = harness.routeNativeElement as HTMLElement;
 
-    expect(layout.querySelectorAll('.qits-layout-link')).toHaveLength(6);
+    expect(layout.querySelectorAll('.qits-layout-link')).toHaveLength(7);
     // The layout carries the outlet the pages of this SPA will one day render into.
     expect(layout.querySelector('main.qits-layout-content router-outlet')).not.toBeNull();
   });
