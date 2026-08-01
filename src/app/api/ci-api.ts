@@ -73,6 +73,28 @@ export class CiApi {
   }
 
   /**
+   * The newest finished runs — every status that is not `QUEUED` or `RUNNING` — across every
+   * repository, newest first.
+   *
+   * The complement of {@link activeRuns}, and the other half of the same question: that one is what
+   * the platform is doing, this one is what it just did. The two are complements over one table
+   * server-side, so a run that leaves the first arrives in the second, which is what lets the rail
+   * watch a run finish without ever reading it individually.
+   *
+   * `limit` is required here where the per-repository listing's is optional, and the asymmetry is
+   * the server's: this listing is scoped to no repository, so "all of them" would be every run on
+   * the instance. Absent it would default to five anyway; sending it keeps the number the caller's.
+   */
+  async finishedRuns(limit: number): Promise<readonly CiRunDto[]> {
+    const response = await firstValueFrom(
+      this.http.get<CiRunsResponse>(`${this.base}/ci/api/runs/finished`, {
+        params: new HttpParams().set('limit', limit),
+      }),
+    );
+    return response.runs;
+  }
+
+  /**
    * One repository's runs, newest first, without step output. `limit` is optional and absent means
    * unbounded — which is what the *show all* affordance sends once the first page came back full.
    */

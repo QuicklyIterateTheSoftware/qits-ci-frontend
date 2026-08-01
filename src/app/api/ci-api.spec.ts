@@ -49,6 +49,17 @@ describe('CiApi', () => {
     await expect(runs).resolves.toMatchObject([{ id: 'r1', status: 'QUEUED' }]);
   });
 
+  it('reads the finished list platform-wide too, with the limit it was asked for', async () => {
+    // The complement of the active list, and the only difference in how it is asked: this one is
+    // unscoped by repository *and* unbounded server-side, so the bound is the caller's to send.
+    const runs = api.finishedRuns(5);
+    const request = http.expectOne((candidate) => candidate.url === '/ci/api/runs/finished');
+    expect(request.request.params.get('limit')).toBe('5');
+    expect(request.request.params.has('repositoryId')).toBe(false);
+    request.flush({ runs: [{ id: 'r1', status: 'SUCCESS' } as CiRunDto] });
+    await expect(runs).resolves.toMatchObject([{ id: 'r1', status: 'SUCCESS' }]);
+  });
+
   it('asks for the newest hundred runs of one repository', async () => {
     const runs = api.runs('qits-ci', 100);
     const request = http.expectOne(

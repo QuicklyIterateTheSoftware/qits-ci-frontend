@@ -128,8 +128,14 @@ describe('TreePage', () => {
     http.expectOne('/ci/api/repositories/summary').flush({ repositories: summaries });
   }
 
+  /**
+   * The rail's pair of reads. It asks both listings on every tick — what is in flight, and what has
+   * just finished — so answering only the first would leave a request open that `http.verify()`
+   * reports. The finished stack is the rail's own business; this page only has to let it load.
+   */
   function flushActive(runs: readonly CiRunDto[] = []): void {
     http.expectOne('/ci/api/runs/active').flush({ runs });
+    http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
   }
 
   function flushRepositories(projectId: string, repositories: readonly RepositoryDto[]): void {
@@ -457,6 +463,9 @@ describe('TreePage', () => {
     http.expectOne('/ci/api/repositories').flush(null, { status: 503, statusText: 'Down' });
     http.expectOne('/ci/api/repositories/summary').flush(null, { status: 503, statusText: 'Down' });
     http.expectOne('/ci/api/runs/active').flush(null, { status: 503, statusText: 'Down' });
+    http
+      .expectOne((request) => request.url === '/ci/api/runs/finished')
+      .flush(null, { status: 503, statusText: 'Down' });
     await settle();
     flushRepositories('p1', [repository('qits-ci', 'p1')]);
     await settle();

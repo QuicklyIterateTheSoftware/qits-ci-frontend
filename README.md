@@ -17,9 +17,23 @@ were seeded onto the git host with no qits-projects row — so that bucket is wh
 actually is until those repositories are onboarded, and hiding it would make the tree look empty
 while the data sat one join away.
 
+The right rail carries two lists, and they are complements of one another. Below is **`Active
+runs`** — every `QUEUED` or `RUNNING` run on the platform, whatever repository it belongs to, from
+`GET /ci/api/runs/active`. Above it is **`Finished runs`**, seeded with the newest five from `GET
+/ci/api/runs/finished?limit=5`, oldest at the top so it reads forwards in time down into the runs
+still in flight. Both are re-read on one ten-second tick, which is also how a completion is
+detected: a run leaves the first list and arrives in the second on the same tick, with no per-run
+read anywhere. A run that starts *and* finishes between two ticks is never drawn as active and still
+lands in the stack.
+
+The finished stack is **append-only for as long as the page is open** — five rows become six, then
+seven — and a reload starts again at five. Nothing is ever trimmed while you watch, because a rail
+that re-seeded on every poll would drop the run you were looking at exactly when a burst of builds
+made the history worth having.
+
 `src/app/api/` holds hand-written interfaces mirroring the two services' wire shapes, one injectable
-service each, over `HttpClient` on the fetch backend. Nothing is generated: the total surface is six
-endpoints, and the platform generates OpenAPI documents rather than clients.
+service each, over `HttpClient` on the fetch backend. Nothing is generated: the total surface is
+seven endpoints, and the platform generates OpenAPI documents rather than clients.
 
 ## Development server
 

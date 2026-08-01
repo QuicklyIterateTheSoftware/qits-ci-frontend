@@ -4,10 +4,10 @@ import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import type { CiRunDto } from '../api/dto';
-import { ACTIVE_POLL_INTERVAL_MS, ActiveRuns } from './active-runs';
+import { ACTIVE_POLL_INTERVAL_MS, ActiveRuns, FINISHED_SEED_COUNT } from './active-runs';
 
 /**
- * The right rail, and above all its cadence.
+ * The right rail: its cadence, and the stack of finished runs above it.
  *
  * This is the one thing in the application that polls with nothing to follow, so the assertions
  * that matter are about the *schedule*: a fixed ten seconds, nothing at all while the tab is
@@ -17,6 +17,10 @@ import { ACTIVE_POLL_INTERVAL_MS, ActiveRuns } from './active-runs';
  * The `changed` output is the other load-bearing piece: it is what lets the tree hold its repository
  * summaries still and refresh them only when the platform's work in flight actually moved. A poll
  * that found the same runs must emit nothing, or the saving is no saving at all.
+ *
+ * The finished stack's own rule is **append-only**, and most of what is asserted below is that
+ * nothing else ever happens to it: it seeds at five, it grows, it never re-orders, it never drops a
+ * row, and it never shows one run twice however many polls re-report it.
  */
 describe('ActiveRuns', () => {
   let http: HttpTestingController;
@@ -40,6 +44,21 @@ describe('ActiveRuns', () => {
     live: null,
     ...over,
   });
+
+  /**
+   * A fixed instant `minute` minutes past a base, so a spec *states* an ordering rather than racing
+   * one. The stack's whole contract is an order, and `Date.now()` cannot express one.
+   */
+  const at = (minute: number): string => new Date(Date.UTC(2026, 6, 31, 12, minute)).toISOString();
+
+  /** A run that is over, with the `createdAt` its position in the stack is decided by. */
+  const done = (id: string, minute: number, over: Partial<CiRunDto> = {}): CiRunDto =>
+    run(id, {
+      status: 'SUCCESS',
+      createdAt: at(minute),
+      finishedAt: at(minute + 1),
+      ...over,
+    });
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -95,12 +114,29 @@ describe('ActiveRuns', () => {
     await settle();
   }
 
-  function flushActive(runs: readonly CiRunDto[]): void {
-    http.expectOne('/ci/api/runs/active').flush({ runs });
+  /**
+   * One tick's worth of answers. Both listings are asked on every tick, so a spec that answered
+   * only one would leave the other outstanding and `http.verify()` would say so.
+   */
+  function flushActive(active: readonly CiRunDto[], finished: readonly CiRunDto[] = []): void {
+    http.expectOne('/ci/api/runs/active').flush({ runs: active });
+    flushFinished(finished);
+  }
+
+  /** The finished listing answers newest-first, exactly as the server does. */
+  function flushFinished(runs: readonly CiRunDto[]): void {
+    http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs });
   }
 
   function text(): string {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  /** Every run link in document order — the stack sits above the active list, so order is content. */
+  function links(): readonly string[] {
+    return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a')).map(
+      (anchor) => anchor.getAttribute('href') ?? '',
+    );
   }
 
   it('lists what is in flight: the repository, the status, branch@sha and an age', async () => {
@@ -112,8 +148,7 @@ describe('ActiveRuns', () => {
     expect(text()).toContain('qits-ci');
     expect(text()).toContain('main@9f2c1ab');
     expect(text()).toContain('ago');
-    const link = (fixture.nativeElement as HTMLElement).querySelector('a');
-    expect(link?.getAttribute('href')).toBe('/runs/r1');
+    expect(links()).toEqual(['/runs/r1']);
   });
 
   it('says nothing is building rather than drawing an empty box', async () => {
@@ -205,6 +240,7 @@ describe('ActiveRuns', () => {
 
     await tick(ACTIVE_POLL_INTERVAL_MS);
     http.expectOne('/ci/api/runs/active').flush(null, { status: 503, statusText: 'Down' });
+    flushFinished([]);
     await settle();
 
     expect(text()).toContain('last read failed');
@@ -219,6 +255,7 @@ describe('ActiveRuns', () => {
   it('offers a retry when the very first read fails, because there is nothing to keep', async () => {
     mount();
     http.expectOne('/ci/api/runs/active').flush(null, { status: 503, statusText: 'Down' });
+    flushFinished([]);
     await settle();
 
     expect(text()).toContain('Could not load the runs in flight — 503');
@@ -232,5 +269,159 @@ describe('ActiveRuns', () => {
     await settle();
     expect(text()).not.toContain('Could not load the runs in flight');
     expect(text()).toContain('qits-ci');
+  });
+
+  // --- the finished stack ---
+
+  it('seeds the stack with the newest five, oldest at the top and above the active list', async () => {
+    mount();
+    // The server answers newest first; the stack is drawn the other way up, so it reads forwards in
+    // time down the page and into the runs still in flight.
+    flushActive(
+      [run('a1')],
+      [done('f5', 5), done('f4', 4), done('f3', 3), done('f2', 2), done('f1', 1)],
+    );
+    await settle();
+
+    expect(links()).toEqual([
+      '/runs/f1',
+      '/runs/f2',
+      '/runs/f3',
+      '/runs/f4',
+      '/runs/f5',
+      '/runs/a1',
+    ]);
+    expect(text()).toContain('Finished runs');
+    expect(text()).toContain('SUCCESS');
+  });
+
+  it('asks for exactly five and draws no stack at all when nothing has ever finished', async () => {
+    mount();
+    const request = http.expectOne((call) => call.url === '/ci/api/runs/finished');
+    expect(request.request.params.get('limit')).toBe(String(FINISHED_SEED_COUNT));
+    request.flush({ runs: [] });
+    http.expectOne('/ci/api/runs/active').flush({ runs: [] });
+    await settle();
+
+    // An empty heading over nothing is noise; the active section already says the platform is idle.
+    expect(text()).not.toContain('Finished runs');
+  });
+
+  it('appends a run to the bottom of the stack when it finishes, and drops it from active', async () => {
+    useIntervalFakes();
+    mount();
+    flushActive([run('r9', { createdAt: at(9) })], [done('f1', 1)]);
+    await settle();
+    expect(links()).toEqual(['/runs/f1', '/runs/r9']);
+
+    // The run leaves the active listing and turns up in the finished one on the same tick — which
+    // is the whole of how this column detects a completion.
+    await tick(ACTIVE_POLL_INTERVAL_MS);
+    flushActive([], [done('r9', 9), done('f1', 1)]);
+    await settle();
+
+    expect(links()).toEqual(['/runs/f1', '/runs/r9']);
+    expect(text()).toContain('Nothing building right now.');
+    // A finished run appearing where a running one was is a change the tree has to hear about.
+    expect(changes).toBe(1);
+  });
+
+  it('appends a run that was never seen active, because it started and finished between polls', async () => {
+    useIntervalFakes();
+    mount();
+    flushActive([], [done('f1', 1)]);
+    await settle();
+    expect(changes).toBe(0);
+
+    // Nothing entered or left the active set — it was empty before and after — so the id-set test
+    // alone would have reported no change at all and this run would be invisible until a reload.
+    await tick(ACTIVE_POLL_INTERVAL_MS);
+    flushActive([], [done('quick', 2), done('f1', 1)]);
+    await settle();
+
+    expect(links()).toEqual(['/runs/f1', '/runs/quick']);
+    expect(changes).toBe(1);
+  });
+
+  it('shows a run once however many polls keep reporting it', async () => {
+    useIntervalFakes();
+    mount();
+    flushActive([], [done('f2', 2), done('f1', 1)]);
+    await settle();
+
+    // The server keeps answering with its newest five, so every one of these repeats rows the stack
+    // already holds. Keyed by id, none of them is a second row.
+    for (let poll = 0; poll < 3; poll += 1) {
+      await tick(ACTIVE_POLL_INTERVAL_MS);
+      flushActive([], [done('f2', 2), done('f1', 1)]);
+      await settle();
+    }
+
+    expect(links()).toEqual(['/runs/f1', '/runs/f2']);
+    expect(changes).toBe(0);
+  });
+
+  it('never trims: five rows become six, then seven, for as long as the view is open', async () => {
+    useIntervalFakes();
+    mount();
+    flushActive([], [done('f5', 5), done('f4', 4), done('f3', 3), done('f2', 2), done('f1', 1)]);
+    await settle();
+    expect(links().length).toBe(FINISHED_SEED_COUNT);
+
+    // The server's answer stays five rows long — it is a *newest five* — while the stack grows past
+    // it. Re-seeding on each poll would silently drop f1 and f2 here.
+    await tick(ACTIVE_POLL_INTERVAL_MS);
+    flushActive([], [done('f6', 6), done('f5', 5), done('f4', 4), done('f3', 3), done('f2', 2)]);
+    await settle();
+    expect(links().length).toBe(6);
+
+    await tick(ACTIVE_POLL_INTERVAL_MS);
+    flushActive([], [done('f7', 7), done('f6', 6), done('f5', 5), done('f4', 4), done('f3', 3)]);
+    await settle();
+
+    expect(links()).toEqual([
+      '/runs/f1',
+      '/runs/f2',
+      '/runs/f3',
+      '/runs/f4',
+      '/runs/f5',
+      '/runs/f6',
+      '/runs/f7',
+    ]);
+  });
+
+  it('appends several completions in chronological order, and ignores one older than the stack', async () => {
+    useIntervalFakes();
+    mount();
+    flushActive([], [done('f5', 5)]);
+    await settle();
+
+    // Two finished since the last poll, plus a straggler that started before the bottom row. The
+    // two are appended oldest-first; the straggler is dropped rather than inserted, because putting
+    // it in place would move rows the user has already read.
+    await tick(ACTIVE_POLL_INTERVAL_MS);
+    flushActive([], [done('f7', 7), done('f6', 6), done('old', 3), done('f5', 5)]);
+    await settle();
+
+    expect(links()).toEqual(['/runs/f5', '/runs/f6', '/runs/f7']);
+  });
+
+  it('keeps the stack it has when the finished read fails, and says nothing about it', async () => {
+    useIntervalFakes();
+    mount();
+    flushActive([run('r1')], [done('f1', 1)]);
+    await settle();
+
+    await tick(ACTIVE_POLL_INTERVAL_MS);
+    http.expectOne('/ci/api/runs/active').flush({ runs: [run('r1')] });
+    http
+      .expectOne((call) => call.url === '/ci/api/runs/finished')
+      .flush(null, { status: 503, statusText: 'Down' });
+    await settle();
+
+    // History that did not refresh is not a failure worth a banner: the active list is this
+    // column's content and it arrived.
+    expect(links()).toEqual(['/runs/f1', '/runs/r1']);
+    expect(text()).not.toContain('last read failed');
   });
 });
