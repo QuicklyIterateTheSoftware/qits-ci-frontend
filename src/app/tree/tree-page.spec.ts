@@ -16,8 +16,9 @@ import type { CiRepositorySummaryDto, CiRunDto, ProjectDto, RepositoryDto } from
  * repository.
  *
  * The budget above that level is now deliberately larger, and it is asserted rather than assumed.
- * On load this page reads `4 + P`: the projects, the repository ids qits-ci has runs for, the
- * repository summaries, the active-runs list, and one repository list per project. The last of
+ * On load this page reads `5 + P`: the projects, the repository ids qits-ci has runs for, the
+ * repository summaries, the rail's two listings — what is in flight and what has just finished —
+ * and one repository list per project. The last of
  * those is the attribution index, and it is what buys the thing the old lazier tree got wrong —
  * every repository sat under "Not claimed by any project" until somebody expanded the project that
  * owned it, which is a wrong answer to the question this screen exists to answer.
@@ -145,7 +146,7 @@ describe('TreePage', () => {
   }
 
   /**
-   * Answer everything the page asks for on load: the four flat reads, and then the attribution
+   * Answer everything the page asks for on load: the five flat reads, and then the attribution
    * index's one repository list per project. `claims` maps a project id to the repositories it owns
    * and defaults to none, which is the platform's own shape before anything is onboarded.
    */

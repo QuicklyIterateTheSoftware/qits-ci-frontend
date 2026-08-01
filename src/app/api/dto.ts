@@ -7,7 +7,7 @@
  * clients, and every controller here nests its request/response records inside the request type, so
  * a generator names them positionally — qits-projects' committed document already calls the
  * list-projects response `Response19` and one entry `Entry4`. A tree written against `Entry4` is
- * worse than one written against the twenty lines below, and the total surface is six endpoints.
+ * worse than one written against the twenty lines below, and the total surface is seven endpoints.
  *
  * The response envelopes are genuinely inconsistent between the two services — `{runs: […]}` for
  * ci's list, a bare run for its single read, `{entries: [{project: …}]}` for projects — and the

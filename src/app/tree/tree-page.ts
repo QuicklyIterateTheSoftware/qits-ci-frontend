@@ -65,13 +65,18 @@ function withEntry<T>(map: ReadonlyMap<string, T>, key: string, value: T): Reado
  * every run list a different repository's; the user's clicks are the bound on those, so there is no
  * fan-out budget to tune below a repository row.
  *
- * **On load this page reads `4 + P`**, and every one of those is a flat list:
+ * **On load this page reads `5 + P`**, and every one of those is a flat list:
  *
  * - `GET /projects/api/projects` — the spine.
  * - `GET /ci/api/repositories` — the ids qits-ci has runs for, which is what the bucket counts.
  * - `GET /ci/api/repositories/summary` — one headline pair per repository, for the row badges.
- * - `GET /ci/api/runs/active` — the right rail's first read, and the only one that repeats.
+ * - `GET /ci/api/runs/active` — the right rail's first read.
+ * - `GET /ci/api/runs/finished` — the other half of the rail, seeding its stack of what is over.
  * - `GET /projects/api/projects/{id}/repositories`, once per project — the attribution index.
+ *
+ * The two rail reads are the only ones that repeat, and they repeat together: the rail asks both on
+ * one ten-second tick, which is what lets it watch a run cross from one list to the other without
+ * reading that run individually.
  *
  * That last line is the deliberate amendment to Decision 3's budget, and it is bought with
  * correctness that could not be had any other way. Attribution used to be built only when a deep
