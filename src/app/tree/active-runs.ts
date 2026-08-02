@@ -39,9 +39,8 @@ export const ACTIVE_POLL_INTERVAL_MS = 10_000;
  * How many finished runs the stack is seeded with when the view opens.
  *
  * It is also what each poll asks for, and that second use is the one with a bound to justify. A
- * poll only has to catch what finished since the last one, and qits-ci's run worker is
- * single-threaded — it finishes runs one at a time — so five completions inside ten seconds is far
- * past anything the server can produce. The server caps the parameter at a hundred either way.
+ * Five is a compact recent-history window rather than a claim about server throughput: build
+ * concurrency is deployment-configurable. The server caps the parameter at a hundred either way.
  */
 export const FINISHED_SEED_COUNT = 5;
 
