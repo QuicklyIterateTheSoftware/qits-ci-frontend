@@ -71,6 +71,16 @@
     <dt>Finished</dt>
     <dd>{{ run.finishedAt ? formatClock(run.finishedAt) : none }}</dd>
 
+    @if (run.cancellationReason) {
+      <dt>Cancelled</dt>
+      <dd>
+        {{ run.cancellationReason }}
+        @if (run.supersededByRunId) {
+          · <a [routerLink]="['/runs', run.supersededByRunId]">newer run</a>
+        }
+      </dd>
+    }
+
     <dt>Duration</dt>
     <dd>{{ runDuration(run) }}</dd>
 

@@ -35,6 +35,8 @@ describe('ActiveRuns', () => {
     status: 'RUNNING',
     createdAt: new Date(Date.now() - 127_000).toISOString(),
     finishedAt: null,
+    cancellationReason: null,
+    supersededByRunId: null,
     daemonVersion: '0.4.1',
     triggerType: 'POST_RECEIVE',
     triggerEventId: null,

@@ -44,6 +44,8 @@ describe('RunPage', () => {
     status: 'SUCCESS',
     createdAt: '2026-07-31T14:02:11Z',
     finishedAt: '2026-07-31T14:06:23Z',
+    cancellationReason: null,
+    supersededByRunId: null,
     daemonVersion: '0.4.1',
     triggerType: 'POST_RECEIVE',
     triggerEventId: null,
@@ -187,6 +189,26 @@ describe('RunPage', () => {
     expect(text()).toContain('0.4.1');
     // The last completed step's pane is the one open on arrival.
     expect(page().querySelector('.output')?.textContent).toContain('added 812 packages');
+    http.verify();
+  });
+
+  it('shows why a run was cancelled and links a deduped run to its replacement', async () => {
+    await open();
+    expectRun().flush(
+      run({
+        status: 'FAILED',
+        cancellationReason: 'DEDUPED',
+        supersededByRunId: 'newer-run',
+      }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('DEDUPED');
+    const replacement = Array.from(page().querySelectorAll('a')).find((link) =>
+      link.textContent?.includes('newer run'),
+    );
+    expect(replacement?.getAttribute('href')).toBe('/runs/newer-run');
     http.verify();
   });
 

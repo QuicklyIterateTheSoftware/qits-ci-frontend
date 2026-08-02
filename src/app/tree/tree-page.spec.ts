@@ -51,6 +51,8 @@ describe('TreePage', () => {
     status: 'SUCCESS',
     createdAt: '2026-07-31T14:02:11Z',
     finishedAt: '2026-07-31T14:06:23Z',
+    cancellationReason: null,
+    supersededByRunId: null,
     daemonVersion: '0.4.1',
     triggerType: 'POST_RECEIVE',
     triggerEventId: null,

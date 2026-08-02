@@ -121,9 +121,12 @@ export class CiApi {
    * not finished when this returns — the caller re-reads the run for the outcome. A run that is not
    * running answers 409, which is a race the page tolerates rather than an error it reports.
    */
-  async cancel(runId: string): Promise<void> {
+  async cancel(runId: string, reason?: string): Promise<void> {
     await firstValueFrom(
-      this.http.post(`${this.base}/ci/api/runs/${encodeURIComponent(runId)}/cancel`, null),
+      this.http.post(
+        `${this.base}/ci/api/runs/${encodeURIComponent(runId)}/cancel`,
+        reason === undefined ? null : { reason },
+      ),
     );
   }
 }

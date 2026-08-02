@@ -88,6 +88,8 @@ export interface CiRunDto {
   readonly status: CiRunStatus;
   readonly createdAt: string;
   readonly finishedAt: string | null;
+  readonly cancellationReason: string | null;
+  readonly supersededByRunId: string | null;
   readonly daemonVersion: string | null;
   readonly triggerType: CiTriggerType;
   readonly triggerEventId: string | null;

@@ -93,6 +93,15 @@ describe('CiApi', () => {
     await expect(cancelled).resolves.toBeUndefined();
   });
 
+  it('sends an optional cancellation reason as JSON', async () => {
+    const cancelled = api.cancel('run-1', 'No longer needed');
+    const request = http.expectOne('/ci/api/runs/run-1/cancel');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ reason: 'No longer needed' });
+    request.flush(null, { status: 202, statusText: 'Accepted' });
+    await expect(cancelled).resolves.toBeUndefined();
+  });
+
   it('rejects with the HttpErrorResponse, so callers can read the status', async () => {
     const run = api.run('nope');
     http
