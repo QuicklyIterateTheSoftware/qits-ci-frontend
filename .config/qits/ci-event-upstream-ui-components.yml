@@ -1,0 +1,38 @@
+event: SoftwareRelease
+when:
+  - repository: { exact: qits-spa-ui-components }
+    packageType: { exact: npm }
+    packageName: { exact: "@qits/ui-components" }
+steps:
+  - image: qits/build-images/node-base:latest
+    timeout-seconds: 1200
+    script: |
+      set -eu
+      version=$(node -p 'JSON.parse(process.env.QITS_EVENT_PAYLOAD).version')
+      upstream=$(node -p 'JSON.parse(process.env.QITS_EVENT_PAYLOAD).repository')
+      if ! env npm_config_registry="$QITS_NPM_PROXY_URL" \
+               "npm_config_@qits:registry=$QITS_NPM_REGISTRY_URL" \
+               npm view "@qits/ui-components@$version" version >/dev/null 2>&1
+      then
+        echo "SoftwareRelease said @qits/ui-components@$version is published, but the registry does not have it"
+        exit 1
+      fi
+      npm_origin=$(node -p 'new URL(process.env.QITS_NPM_PROXY_URL).origin')
+      sed -i -E "s#(\"resolved\": \")https?://[^/\"]+#\\1$npm_origin#" package-lock.json
+      env npm_config_registry="$QITS_NPM_PROXY_URL" \
+          "npm_config_@qits:registry=$QITS_NPM_REGISTRY_URL" \
+          npm install --package-lock-only --no-audit --no-fund "@qits/ui-components@^$version"
+      sed -i -E "s#(\"resolved\": \")https?://[^/\"]+#\\1http://localhost:8081#" package-lock.json
+      if grep '"resolved": "' package-lock.json | grep -v '"resolved": "http://localhost:8081/'; then
+        echo "a foreign origin survived in package-lock.json"
+        exit 1
+      fi
+      git add package.json package-lock.json
+      if git diff --cached --quiet; then
+        echo "@qits/ui-components@$version is already the pin - nothing to hop"
+        exit 0
+      fi
+      git -c user.name="qits release train" -c user.email="release-train@qits.local" \
+          commit -q -m "bump(@qits/ui-components@$version): follow the $upstream release"
+      git push --force "$QITS_CI_REPOSITORY_URL" "HEAD:refs/heads/maintenance/$upstream"
+
