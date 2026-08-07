@@ -23,7 +23,7 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
-    "@qits/ui-components": "2026.806.184725-main.gc03ad30",
+    "@qits/ui-components": "^2026.807.122825",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
