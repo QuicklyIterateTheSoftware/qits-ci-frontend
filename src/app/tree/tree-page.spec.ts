@@ -37,6 +37,8 @@ describe('TreePage', () => {
 
   const repository = (id: string, projectId: string): RepositoryDto => ({
     id,
+    name: id,
+    backupUrl: `https://example.test/QuicklyIterate/${id}.git`,
     url: `https://example.test/QuicklyIterate/${id}.git`,
     mainBranch: 'main',
     archetype: 'SERVICE',

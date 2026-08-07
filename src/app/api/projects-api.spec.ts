@@ -39,6 +39,8 @@ describe('ProjectsApi', () => {
         {
           repository: {
             id: 'qits-ci',
+            name: 'qits-ci',
+            backupUrl: 'ssh://git@example/QuicklyIterate/qits-ci.git',
             url: 'ssh://git@example/QuicklyIterate/qits-ci.git',
             mainBranch: 'main',
             archetype: 'SERVICE',

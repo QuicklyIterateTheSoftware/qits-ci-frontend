@@ -141,6 +141,8 @@ describe('RunPage', () => {
         entries: (claims[entry.id] ?? []).map((repoId) => ({
           repository: {
             id: repoId,
+            name: repoId,
+            backupUrl: `https://example.test/QuicklyIterate/${repoId}.git`,
             url: `https://example.test/QuicklyIterate/${repoId}.git`,
             mainBranch: 'main',
             archetype: 'SERVICE',

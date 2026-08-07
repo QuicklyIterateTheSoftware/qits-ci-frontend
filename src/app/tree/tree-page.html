@@ -51,7 +51,7 @@
                   }
                   @for (repository of repositories.value; track repository.id) {
                     <app-tree-node
-                      [label]="repositoryLabel(repository.url)"
+                      [label]="repositoryLabel(repository)"
                       [tag]="repository.archetype"
                       [meta]="repository.mainBranch"
                       [expanded]="expandedRepos().has(repository.id)"

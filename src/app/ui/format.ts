@@ -8,6 +8,8 @@
  * out loud.
  */
 
+import type { RepositoryDto } from '../api/dto';
+
 const MONTHS = [
   'Jan',
   'Feb',
@@ -100,13 +102,19 @@ export function formatElapsed(millis: number): string {
 }
 
 /**
- * The label for a repository row: the basename of its clone url.
+ * The label for a repository row: its registered name.
  *
- * `RepositoryDto` carries no name, and a row reading `a1b2c3d4-5e6f-…` helps nobody. This is a
- * **label only** — the identity stays `repository.id`, because that id is the git-host directory
- * name and therefore the key `CiRun.repoId` joins on.
+ * A row that answers no name falls back to the basename of its clone url, which is what this drew
+ * for every row before the name field existed. The fallback reads `backupUrl` — `url` is the
+ * deprecated duplicate and is on its way out. This is a **label only**: the identity stays
+ * `repository.id`, because that id is the git-host directory name and therefore the key
+ * `CiRun.repoId` joins on.
  */
-export function repositoryLabel(url: string): string {
+export function repositoryLabel(repository: Pick<RepositoryDto, 'name' | 'backupUrl'>): string {
+  return repository.name ?? urlBasename(repository.backupUrl);
+}
+
+function urlBasename(url: string): string {
   const basename = url
     .replace(/\.git$/, '')
     .split(/[/:]/)

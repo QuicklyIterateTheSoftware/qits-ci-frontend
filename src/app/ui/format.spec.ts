@@ -37,10 +37,19 @@ describe('format', () => {
     expect(formatElapsed(3_840_000)).toBe('1h 04m');
   });
 
-  it('labels a repository by the basename of its url, never by its id', () => {
-    expect(repositoryLabel('https://github.com/QuicklyIterate/qits-ci.git')).toBe('qits-ci');
-    expect(repositoryLabel('git@github.com:QuicklyIterate/qits-ci.git')).toBe('qits-ci');
-    expect(repositoryLabel('/data/repositories/qits-gateway/origin/')).toBe('origin');
+  it('labels a repository by its registered name, never by its id', () => {
+    expect(
+      repositoryLabel({ name: 'qits-ci', backupUrl: 'https://example.test/QuicklyIterate/x.git' }),
+    ).toBe('qits-ci');
+  });
+
+  /** Release A added the name column without backfilling, so an old row still labels itself. */
+  it('falls back to the basename of the clone url when a row has no name', () => {
+    const label = (backupUrl: string) => repositoryLabel({ name: null, backupUrl });
+
+    expect(label('https://github.com/QuicklyIterate/qits-ci.git')).toBe('qits-ci');
+    expect(label('git@github.com:QuicklyIterate/qits-ci.git')).toBe('qits-ci');
+    expect(label('/data/repositories/qits-gateway/origin/')).toBe('origin');
   });
 
   it('abbreviates ids and shas the way the rows need them', () => {

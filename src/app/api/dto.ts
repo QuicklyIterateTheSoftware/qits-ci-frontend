@@ -157,12 +157,22 @@ export interface ProjectDto {
 }
 
 /**
- * A repository. There is no name field — the tree derives a label from `url` and keeps `id` as the
- * identity, because `id` is the git-host directory name and therefore the join key `CiRun.repoId`
- * carries.
+ * A repository. `name` is the registered name and the tree's label; `id` stays the identity, because
+ * `id` is the git-host directory name and therefore the join key `CiRun.repoId` carries.
+ *
+ * `name` is typed nullable rather than required: release A added the column without backfilling
+ * every row, so a row written earlier can still answer null — see {@link repositoryLabel} for what
+ * is drawn then.
  */
 export interface RepositoryDto {
   readonly id: string;
+  readonly name: string | null;
+  /** The clone url. Read this one. */
+  readonly backupUrl: string;
+  /**
+   * @deprecated The same value as {@link backupUrl}, kept for exactly one release and then dropped
+   * by the server. Declared so the shape still matches the wire; nothing here reads it.
+   */
   readonly url: string;
   readonly mainBranch: string;
   readonly archetype: RepositoryArchetype;
