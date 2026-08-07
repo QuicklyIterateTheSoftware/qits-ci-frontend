@@ -38,15 +38,12 @@ export type CiTriggerType = 'POST_RECEIVE' | 'EVENT';
 /**
  * What a repository is for, as qits-projects classifies it.
  *
- * Widened additively: `DAEMON`, `FRONTEND`, `CLI` and `IMAGE` are the new names, and `INTEGRATION`
- * and `APPLICATION` stay listed until a later release retires them on the server.
+ * Widened additively: `DAEMON`, `FRONTEND`, `CLI` and `IMAGE` are the new names.
  */
 export type RepositoryArchetype =
   | 'PROJECT'
   | 'SERVICE'
   | 'LIBRARY'
-  | 'INTEGRATION'
-  | 'APPLICATION'
   | 'SERVICE_TEMPLATE'
   | 'FORK'
   | 'DAEMON'
