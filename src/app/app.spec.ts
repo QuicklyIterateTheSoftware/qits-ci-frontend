@@ -4,8 +4,20 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideLocationMocks } from '@angular/common/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { provideQitsNavigationLinks } from '@qits/ui-components';
 import { App } from './app';
 import { routes } from './app.routes';
+
+/**
+ * A fixture navigation, not the platform's. `provideQitsNavigationLinks` answers the layout's
+ * `QITS_NAVIGATION` from a literal, so the chrome never asks for `/main-navigation` — no request to
+ * flush, and nothing pending to keep the harness from settling.
+ */
+const NAV = [
+  { label: 'CI', href: '/ci/' },
+  { label: 'Deployments', href: '/platform-deployments/' },
+  { label: 'Artifacts', href: '/artifacts/' },
+] as const;
 
 /**
  * The shell owns one thing — the outlet — so that is what is asserted here, plus the route table
@@ -22,6 +34,7 @@ describe('App', () => {
         provideLocationMocks(),
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideQitsNavigationLinks(NAV),
       ],
     });
   });
@@ -39,7 +52,10 @@ describe('App', () => {
     const harness = await RouterTestingHarness.create('/');
     const layout = harness.routeNativeElement as HTMLElement;
 
-    expect(layout.querySelectorAll('.qits-layout-link')).toHaveLength(8);
+    // The count is the fixture's, not the platform's: how many front doors exist is a deployment
+    // fact the gateway answers, and asserting it belongs to qits-gateway's own spec. What this
+    // proves is that /ci/ mounts the chrome and the chrome renders what it is told.
+    expect(layout.querySelectorAll('.qits-layout-link')).toHaveLength(NAV.length);
     // The layout carries the outlet the pages of this SPA will one day render into.
     expect(layout.querySelector('main.qits-layout-content router-outlet')).not.toBeNull();
   });
