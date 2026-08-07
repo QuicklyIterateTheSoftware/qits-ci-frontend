@@ -35,9 +35,24 @@ export type CiStepStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPP
 /** What caused a run: a push, or an event that matched a committed trigger. */
 export type CiTriggerType = 'POST_RECEIVE' | 'EVENT';
 
-/** What a repository is for, as qits-projects classifies it. */
+/**
+ * What a repository is for, as qits-projects classifies it.
+ *
+ * Widened additively: `DAEMON`, `FRONTEND`, `CLI` and `IMAGE` are the new names, and `INTEGRATION`
+ * and `APPLICATION` stay listed until a later release retires them on the server.
+ */
 export type RepositoryArchetype =
-  'PROJECT' | 'SERVICE' | 'LIBRARY' | 'INTEGRATION' | 'APPLICATION' | 'SERVICE_TEMPLATE' | 'FORK';
+  | 'PROJECT'
+  | 'SERVICE'
+  | 'LIBRARY'
+  | 'INTEGRATION'
+  | 'APPLICATION'
+  | 'SERVICE_TEMPLATE'
+  | 'FORK'
+  | 'DAEMON'
+  | 'FRONTEND'
+  | 'CLI'
+  | 'IMAGE';
 
 /** Trigger types in the order they are drawn; a group with no runs is not drawn at all. */
 export const CI_TRIGGER_TYPES: readonly CiTriggerType[] = ['POST_RECEIVE', 'EVENT'];
