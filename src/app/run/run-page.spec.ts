@@ -143,7 +143,6 @@ describe('RunPage', () => {
             id: repoId,
             name: repoId,
             backupUrl: `https://example.test/QuicklyIterate/${repoId}.git`,
-            url: `https://example.test/QuicklyIterate/${repoId}.git`,
             mainBranch: 'main',
             archetype: 'SERVICE',
             projectId: entry.id,
