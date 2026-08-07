@@ -39,7 +39,6 @@ describe('TreePage', () => {
     id,
     name: id,
     backupUrl: `https://example.test/QuicklyIterate/${id}.git`,
-    url: `https://example.test/QuicklyIterate/${id}.git`,
     mainBranch: 'main',
     archetype: 'SERVICE',
     projectId,
