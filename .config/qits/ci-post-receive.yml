@@ -34,14 +34,14 @@ steps:
       # npm's own knob for exactly this, `--replace-registry-host=always`, cannot do it against a
       # registry mounted under a path. @npmcli/arborist glues rather than resolves (reify.js:
       # `registry.slice(0, -1) + resolvedURL.pathname`), so
-      # http://qits-artifacts:8080/artifacts/npm/npmjs/ + /artifacts/npm/npmjs/zone.js/-/…tgz comes
+      # http://qits-platform-artifacts:8080/artifacts/npm/npmjs/ + /artifacts/npm/npmjs/zone.js/-/…tgz comes
       # out as …/artifacts/npm/npmjs/artifacts/npm/npmjs/zone.js/-/…tgz and every tarball 404s.
       # Measured on npm 10.9.4.
       #
       # The origin is derived from the injected env rather than spelled here: no repository states
       # a deployment's addresses, and the one address this repo does state (localhost:8081, in
       # .npmrc, for a developer on the host) is the one being replaced. Both registries are the
-      # same qits-artifacts, so one origin covers the cached npmjs tarballs and the @qits ones
+      # same qits-platform-artifacts, so one origin covers the cached npmjs tarballs and the @qits ones
       # alike; were that ever to stop being true, the scoped tarballs would 404 rather than resolve
       # to something wrong.
       npm_origin=$(node -p 'new URL(process.env.QITS_NPM_PROXY_URL).origin')
