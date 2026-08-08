@@ -114,7 +114,19 @@ export function repositoryLabel(repository: Pick<RepositoryDto, 'name' | 'backup
   return repository.name ?? urlBasename(repository.backupUrl);
 }
 
-function urlBasename(url: string): string {
+/**
+ * The basename of a clone url, for a row that has no name.
+ *
+ * The url is typed as present and is not trusted to be: this fallback already read a field the API
+ * had dropped once, and an absent url reached `String.prototype.replace` and threw where the label
+ * was drawn — one row without a url then emptied the whole tree, because the throw happens during
+ * rendering and takes the list down with it. A missing url is a row with no label to draw, not a
+ * page that fails.
+ */
+function urlBasename(url: string | null | undefined): string {
+  if (!url) {
+    return '';
+  }
   const basename = url
     .replace(/\.git$/, '')
     .split(/[/:]/)

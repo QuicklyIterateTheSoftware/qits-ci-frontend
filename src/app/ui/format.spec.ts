@@ -52,6 +52,15 @@ describe('format', () => {
     expect(label('/data/repositories/qits-gateway/origin/')).toBe('origin');
   });
 
+  /** A row with neither field draws no label — it must not throw and empty the tree around it. */
+  it('draws an empty label rather than throwing when a row has no url either', () => {
+    const missing = { name: null, backupUrl: undefined } as unknown as Parameters<
+      typeof repositoryLabel
+    >[0];
+
+    expect(repositoryLabel(missing)).toBe('');
+  });
+
   it('abbreviates ids and shas the way the rows need them', () => {
     expect(shortId('da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61')).toBe('da4a3f0e');
     expect(shortSha('9f2c1ab3d4e5f6')).toBe('9f2c1ab');
