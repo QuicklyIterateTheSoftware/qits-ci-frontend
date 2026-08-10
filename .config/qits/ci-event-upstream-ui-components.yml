@@ -25,13 +25,41 @@ steps:
         echo "SoftwareRelease said @qits/ui-components@$version is published, but the registry does not have it"
         exit 1
       fi
-      npm_origin=$(node -p 'new URL(process.env.QITS_NPM_PROXY_URL).origin')
-      sed -i -E "s#(\"resolved\": \")https?://[^/\"]+#\\1$npm_origin#" package-lock.json
+
+      # RETARGET, INSTALL, NORMALIZE. The byte plane is TWO SERVICES since the split —
+      # qits-platform-mirror holds the npmjs pull-through cache, qits-artifacts hosts the @qits
+      # scope — so no single origin serves both and every swap below reads the PATH to tell them
+      # apart: an entry under the hosted registry's own pathname ($QITS_NPM_REGISTRY_URL's,
+      # /artifacts/npm/npm/) is a @qits tarball, everything else is not.
+      #
+      # sed applies -e in sequence per line, so the broad swap runs FIRST and the narrow
+      # path-anchored one corrects the @qits entries after it. The other order lets the broad
+      # expression undo the narrow one.
+      npm_hosted_origin=$(node -p 'new URL(process.env.QITS_NPM_REGISTRY_URL).origin')
+      npm_proxy_origin=$(node -p 'new URL(process.env.QITS_NPM_PROXY_URL).origin')
+      npm_hosted_path=$(node -p 'new URL(process.env.QITS_NPM_REGISTRY_URL).pathname')
+      sed -i -E \
+        -e "s#(\"resolved\": \")https?://[^/\"]+#\1$npm_proxy_origin#" \
+        -e "s#(\"resolved\": \")https?://[^/\"]+($npm_hosted_path)#\1$npm_hosted_origin\2#" \
+        package-lock.json
       env npm_config_registry="$QITS_NPM_PROXY_URL" \
           "npm_config_@qits:registry=$QITS_NPM_REGISTRY_URL" \
           npm install --package-lock-only --no-audit --no-fund "@qits/ui-components@^$version"
-      sed -i -E "s#(\"resolved\": \")https?://[^/\"]+#\\1http://localhost:8081#" package-lock.json
-      if grep '"resolved": "' package-lock.json | grep -v '"resolved": "http://localhost:8081/'; then
+
+      # THE COMMITTED CANONICAL FORM, and the split gave it two origins rather than one. What is
+      # pushed back has to be what a developer on the deployment HOST can install from, and .npmrc
+      # spells exactly that pair: localhost:8081 for the @qits scope (qits-artifacts) and
+      # localhost:8082 for npmjs (qits-platform-mirror). So the normalization is the retargeting
+      # written the other way round — same path anchor, same expression order — and the two agree
+      # by construction. It costs CI nothing either way, since the retargeting above accepts any
+      # origin at all; what a single-origin lockfile would break is the host developer's install,
+      # because 8081 no longer serves the npmjs cache.
+      sed -i -E \
+        -e "s#(\"resolved\": \")https?://[^/\"]+#\1http://localhost:8082#" \
+        -e "s#(\"resolved\": \")https?://[^/\"]+($npm_hosted_path)#\1http://localhost:8081\2#" \
+        package-lock.json
+      if grep '"resolved": "' package-lock.json \
+         | grep -vE '"resolved": "http://localhost:(8081|8082)/'; then
         echo "a foreign origin survived in package-lock.json"
         exit 1
       fi
