@@ -212,10 +212,11 @@ export class RepoRuns {
   }
 
   /**
-   * A running run's duration counts from `createdAt` against the local clock. It is not polled —
+   * A queued run counts from acceptance; once running, its duration restarts at `startedAt`. It is not polled —
    * the tree never polls — so this ticks without asking qits-ci anything.
    */
   protected duration(run: CiRunDto): string {
-    return formatDuration(run.createdAt, run.finishedAt, this.now());
+    const from = run.status === 'QUEUED' ? run.createdAt : run.startedAt;
+    return formatDuration(from, run.finishedAt, this.now());
   }
 }

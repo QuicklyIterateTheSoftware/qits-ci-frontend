@@ -319,7 +319,8 @@ export class RunPage {
   }
 
   protected runDuration(run: CiRunDto): string {
-    return formatDuration(run.createdAt, run.finishedAt, this.now());
+    const from = run.status === 'QUEUED' ? run.createdAt : run.startedAt;
+    return formatDuration(from, run.finishedAt, this.now());
   }
 
   /** The live step has no timestamps at all, so its elapsed time is this client's measurement. */

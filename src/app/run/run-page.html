@@ -65,8 +65,11 @@
       <code>{{ run.configPath || none }}</code>
     </dd>
 
-    <dt>Started</dt>
+    <dt>Queued</dt>
     <dd>{{ formatInstant(run.createdAt) }}</dd>
+
+    <dt>Started</dt>
+    <dd>{{ formatInstant(run.startedAt) }}</dd>
 
     <dt>Finished</dt>
     <dd>{{ run.finishedAt ? formatClock(run.finishedAt) : none }}</dd>

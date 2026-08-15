@@ -51,6 +51,7 @@ describe('TreePage', () => {
     commitSha: '9f2c1ab3d4e5',
     status: 'SUCCESS',
     createdAt: '2026-07-31T14:02:11Z',
+    startedAt: '2026-07-31T14:02:12Z',
     finishedAt: '2026-07-31T14:06:23Z',
     cancellationReason: null,
     supersededByRunId: null,

@@ -34,6 +34,7 @@ describe('ActiveRuns', () => {
     commitSha: '9f2c1ab3d4e5',
     status: 'RUNNING',
     createdAt: new Date(Date.now() - 127_000).toISOString(),
+    startedAt: new Date(Date.now() - 127_000).toISOString(),
     finishedAt: null,
     cancellationReason: null,
     supersededByRunId: null,
@@ -149,8 +150,23 @@ describe('ActiveRuns', () => {
     expect(text()).toContain('QUEUED');
     expect(text()).toContain('qits-ci');
     expect(text()).toContain('main@9f2c1ab');
-    expect(text()).toContain('ago');
+    expect(text()).toContain('queued for 2m 07s');
     expect(links()).toEqual(['/runs/r1']);
+  });
+
+  it('restarts the elapsed timer when a queued run begins executing', async () => {
+    mount();
+    flushActive([
+      run('r1', {
+        status: 'RUNNING',
+        createdAt: new Date(Date.now() - 600_000).toISOString(),
+        startedAt: new Date(Date.now() - 7_000).toISOString(),
+      }),
+    ]);
+    await settle();
+
+    expect(text()).toContain('running for 7s');
+    expect(text()).not.toContain('10m');
   });
 
   it('says nothing is building rather than drawing an empty box', async () => {
