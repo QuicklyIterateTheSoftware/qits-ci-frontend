@@ -27,7 +27,13 @@
  * that have not started yet, and a run waiting for a daemon is exactly the thing an operator wants
  * to see before it becomes a wait they are wondering about.
  */
-export type CiRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CONFIG_ERROR';
+export type CiRunStatus =
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'CONFIG_ERROR';
 
 /** A step's outcome. `PENDING` and `RUNNING` are legacy on this enum and never written. */
 export type CiStepStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED';
@@ -99,6 +105,7 @@ export interface CiRunDto {
   readonly commitSha: string;
   readonly status: CiRunStatus;
   readonly createdAt: string;
+  readonly startedAt: string | null;
   readonly finishedAt: string | null;
   readonly cancellationReason: string | null;
   readonly supersededByRunId: string | null;

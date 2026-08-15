@@ -50,7 +50,8 @@ function sameIds(before: ReadonlySet<string>, after: ReadonlySet<string>): boole
 }
 
 /**
- * Whether one run is newer than another, in the server's own total order: `createdAt` first, the id
+ * Whether one finished run is newer than another, in the server's own total order: `finishedAt`
+ * first, the id
  * as the tie-break.
  *
  * The instants are **parsed rather than compared as strings**. `Instant` serialises with as many
@@ -59,8 +60,8 @@ function sameIds(before: ReadonlySet<string>, after: ReadonlySet<string>): boole
  * precision the server sends.
  */
 function isNewer(run: CiRunDto, than: CiRunDto): boolean {
-  const at = Date.parse(run.createdAt);
-  const other = Date.parse(than.createdAt);
+  const at = Date.parse(run.finishedAt ?? '');
+  const other = Date.parse(than.finishedAt ?? '');
   return at === other ? run.id > than.id : at > other;
 }
 
@@ -386,7 +387,7 @@ export class ActiveRuns {
    * which every poll re-reports for as long as it stays in the server's newest five. **Being newer
    * than the bottom row** is what keeps the stack chronological: a run that started before the
    * bottom one and finished after it is genuinely new to this client, but appending it would put an
-   * older `createdAt` below a newer one and break the timeline the column is drawing. It is dropped
+   * older `finishedAt` below a newer one and break the timeline the column is drawing. It is dropped
    * rather than inserted, because inserting it would move rows the user has already read.
    */
   private absorb(runs: readonly CiRunDto[]): boolean {
@@ -429,8 +430,11 @@ export class ActiveRuns {
     this.sync();
   }
 
-  /** `2m 07s ago`, ticked locally against `createdAt` — an age is a subtraction, not a request. */
+  /** Queue age until claimed; execution age restarts from the worker's start timestamp. */
   protected age(run: CiRunDto): string {
-    return `${formatDuration(run.createdAt, null, this.now())} ago`;
+    if (run.status === 'QUEUED') {
+      return `queued for ${formatDuration(run.createdAt, null, this.now())}`;
+    }
+    return `running for ${formatDuration(run.startedAt, null, this.now())}`;
   }
 }
