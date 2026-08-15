@@ -22,6 +22,7 @@ const TONES: Readonly<Record<string, QitsBadgeTone>> = {
   RUNNING: 'info',
   SUCCESS: 'success',
   FAILED: 'danger',
+  CANCELLED: 'neutral',
   CONFIG_ERROR: 'warning',
   SKIPPED: 'neutral',
   PENDING: 'neutral',
