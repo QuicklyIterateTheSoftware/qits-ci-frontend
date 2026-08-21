@@ -30,6 +30,8 @@ describe('ActiveRuns', () => {
   const run = (id: string, over: Partial<CiRunDto> = {}): CiRunDto => ({
     id,
     repoId: 'qits-ci',
+    projectId: null,
+    repoName: null,
     branch: 'main',
     commitSha: '9f2c1ab3d4e5',
     status: 'RUNNING',
@@ -152,6 +154,23 @@ describe('ActiveRuns', () => {
     expect(text()).toContain('main@9f2c1ab');
     expect(text()).toContain('queued for 2m 07s');
     expect(links()).toEqual(['/runs/r1']);
+  });
+
+  /**
+   * The storage id is a UUID nobody can read. A run that announced its public name is labelled by
+   * it, in both lists, and a run that announced none still says the only thing it knows.
+   */
+  it('labels a run by its repository name, and by its storage id when it has none', async () => {
+    const id = '3f6c1a9e-0b25-4d1e-9c77-2a0e5b8f4d31';
+    mount();
+    flushActive(
+      [run('r1', { repoId: id, projectId: 'p1', repoName: 'qits-ci' })],
+      [done('r0', 4, { repoId: id })],
+    );
+    await settle();
+
+    expect(text()).toContain('qits-ci');
+    expect(text()).toContain(id);
   });
 
   it('restarts the elapsed timer when a queued run begins executing', async () => {

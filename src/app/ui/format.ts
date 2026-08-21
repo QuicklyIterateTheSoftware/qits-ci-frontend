@@ -8,7 +8,7 @@
  * out loud.
  */
 
-import type { RepositoryDto } from '../api/dto';
+import type { CiRunDto, RepositoryDto } from '../api/dto';
 
 const MONTHS = [
   'Jan',
@@ -107,11 +107,32 @@ export function formatElapsed(millis: number): string {
  * A row that answers no name falls back to the basename of its clone url, which is what this drew
  * for every row before the name field existed. The fallback reads `backupUrl` — `url` is the
  * deprecated duplicate and is on its way out. This is a **label only**: the identity stays
- * `repository.id`, because that id is the git-host directory name and therefore the key
+ * `repository.id`, because that id is the git host's storage key and therefore the key
  * `CiRun.repoId` joins on.
  */
 export function repositoryLabel(repository: Pick<RepositoryDto, 'name' | 'backupUrl'>): string {
   return repository.name ?? urlBasename(repository.backupUrl);
+}
+
+/**
+ * The label for a repository as a **run** names it: `repoName` when the run carries one, the storage
+ * id when it does not.
+ *
+ * qits-ci learns a name only from the address a push arrived on, so a mirror sync and every run
+ * recorded before the identity campaign answer none. There is nothing to fall back to but the id,
+ * and drawing it is right rather than merely tolerable: before the cutover the storage id *is* the
+ * name, and after it a nameless run is a run whose repository has no public address to print.
+ *
+ * **Label only.** The key stays `repoId` everywhere — the runs query, the `?repo=` parameter, the
+ * summary map — because two repositories in two projects may share a name and never a storage id.
+ */
+export function runRepositoryLabel(run: Pick<CiRunDto, 'repoId' | 'repoName'>): string {
+  return named(run.repoName) ?? run.repoId;
+}
+
+/** A name the wire actually carries, or null. Empty is absence, whatever the serialiser meant. */
+export function named(name: string | null | undefined): string | null {
+  return name ? name : null;
 }
 
 /**

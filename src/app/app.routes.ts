@@ -17,10 +17,10 @@ import { TreePage } from './tree/tree-page';
  * for resources — and because query parameters keep the back button meaning "collapse".
  *
  * **A run is addressed by its runId alone.** `/ci/runs/<runId>`, never
- * `/ci/projects/<pid>/repos/<rid>/runs/<runId>`: a `CiRun` is keyed by `repoId` and knows nothing
- * about projects, the project association is a join performed in the browser against another
- * service, and the nested form would be unresolvable for exactly the runs that matter most here —
- * the ones no project claims. `runId` is the run's identity, so it is the whole path.
+ * `/ci/projects/<pid>/repos/<rid>/runs/<runId>`: a `CiRun` is keyed by an opaque `repoId` and knows
+ * a project only when its push arrived on the public address, the project *name* is a join performed
+ * in the browser against another service, and the nested form would be unresolvable for exactly the
+ * runs that matter most here — the ones no project claims. `runId` is the run's identity, so it is the whole path.
  *
  * Both pages load eagerly. There are two of them and they share every component below them; a lazy
  * chunk boundary here would be ceremony that costs a round trip.

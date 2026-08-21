@@ -47,6 +47,8 @@ describe('TreePage', () => {
   const run = (id: string, over: Partial<CiRunDto> = {}): CiRunDto => ({
     id,
     repoId: 'qits-ci',
+    projectId: null,
+    repoName: null,
     branch: 'main',
     commitSha: '9f2c1ab3d4e5',
     status: 'SUCCESS',
@@ -62,6 +64,22 @@ describe('TreePage', () => {
     configPath: '.config/qits/ci-post-receive.yml',
     steps: null,
     live: null,
+    ...over,
+  });
+
+  /**
+   * A summary row, keyed by the storage id. `projectId` and `repoName` default to absent, which is
+   * what qits-ci answers for a repository whose newest run announced no public address.
+   */
+  const summary = (
+    repositoryId: string,
+    over: Partial<CiRepositorySummaryDto> = {},
+  ): CiRepositorySummaryDto => ({
+    repositoryId,
+    projectId: null,
+    repoName: null,
+    lastRun: null,
+    lastMainRun: null,
     ...over,
   });
 
@@ -346,6 +364,37 @@ describe('TreePage', () => {
     expect(text()).not.toContain('newest 100 shown');
   });
 
+  /**
+   * The bucket is drawn from bare storage ids, so its only source of a name is the summary the same
+   * id carries — which qits-ci reads off that repository's newest run. Without one there is nothing
+   * true to draw but the id.
+   */
+  it('labels a bucket row by the name its newest run announced, and by its id otherwise', async () => {
+    const named = '3f6c1a9e-0b25-4d1e-9c77-2a0e5b8f4d31';
+    const nameless = 'c1a70f38-9d64-4b02-8e5a-6f3d18b7c920';
+    await open();
+    await flushRoots([], [named, nameless], {}, [
+      summary(named, { repoName: 'qits-ci', projectId: 'p1', lastRun: run('r1') }),
+      summary(nameless, { lastRun: run('r2') }),
+    ]);
+
+    const rows = labels('.bucket .label');
+    expect(rows).toContain('qits-ci');
+    expect(rows).toContain(nameless);
+    expect(rows).not.toContain(named);
+  });
+
+  /** The label moved; the key did not. Expanding a named row still asks by the storage id. */
+  it('keys a bucket row by the storage id even when it draws a name', async () => {
+    const id = '3f6c1a9e-0b25-4d1e-9c77-2a0e5b8f4d31';
+    await open();
+    await flushRoots([], [id], {}, [summary(id, { repoName: 'qits-ci', lastRun: run('r1') })]);
+
+    await click('qits-ci');
+    expectRuns(id).flush({ runs: [run('r1')] });
+    await settle();
+  });
+
   it('draws the unattributed bucket always — “0 repositories” is information', async () => {
     await open();
     await flushRoots([project('p1', 'qits')], []);
@@ -363,11 +412,10 @@ describe('TreePage', () => {
   it('shows a repository’s last run and its main branch’s last build behind its name', async () => {
     await open();
     await flushRoots([project('p1', 'qits')], [], { p1: [repository('qits-ci', 'p1')] }, [
-      {
-        repositoryId: 'qits-ci',
+      summary('qits-ci', {
         lastRun: run('r2', { branch: 'topic', status: 'FAILED' }),
         lastMainRun: run('r1', { commitSha: '9f964840ab', finishedAt: '2026-07-31T19:12:04Z' }),
-      },
+      }),
     ]);
 
     const badges = labels('.badges qits-badge');
@@ -385,7 +433,7 @@ describe('TreePage', () => {
   it('badges a repository in the unattributed bucket too — the rows are the same rows', async () => {
     await open();
     await flushRoots([], ['legacy-build-box'], {}, [
-      { repositoryId: 'legacy-build-box', lastRun: run('r1'), lastMainRun: null },
+      summary('legacy-build-box', { lastRun: run('r1') }),
     ]);
 
     expect(labels('.bucket .badges qits-badge').some((l) => l?.includes('SUCCESS'))).toBe(true);
@@ -400,18 +448,14 @@ describe('TreePage', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     try {
       await open();
-      await flushRoots([], ['qits-ci'], {}, [
-        { repositoryId: 'qits-ci', lastRun: run('r1'), lastMainRun: null },
-      ]);
+      await flushRoots([], ['qits-ci'], {}, [summary('qits-ci', { lastRun: run('r1') })]);
 
       vi.advanceTimersByTime(10_000);
       await settle();
       flushActive([run('r9', { status: 'RUNNING' })]);
       await settle();
       // A run appeared, so the repository's newest run is a different run.
-      flushSummaries([
-        { repositoryId: 'qits-ci', lastRun: run('r9', { status: 'RUNNING' }), lastMainRun: null },
-      ]);
+      flushSummaries([summary('qits-ci', { lastRun: run('r9', { status: 'RUNNING' }) })]);
       await settle();
       expect(labels('.badges qits-badge').some((l) => l?.includes('RUNNING'))).toBe(true);
 

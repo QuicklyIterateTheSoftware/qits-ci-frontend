@@ -13,7 +13,7 @@ import { CiApi } from '../api/ci-api';
 import type { CiRunDto } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
-import { formatDayTime, formatDuration, shortSha } from '../ui/format';
+import { formatDayTime, formatDuration, runRepositoryLabel, shortSha } from '../ui/format';
 import { LOADING, describeError, failed, ready, type Loadable } from '../ui/loadable';
 import { StatusBadge } from '../ui/status-badge';
 import { tickingNow } from '../ui/ticker';
@@ -114,7 +114,7 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
             <a class="entry" [routerLink]="['/runs', run.id]">
               <span class="line">
                 <app-status-badge [status]="run.status" />
-                <span class="repo">{{ run.repoId }}</span>
+                <span class="repo">{{ repoLabel(run) }}</span>
               </span>
               <span class="line">
                 <code class="ref">{{ run.branch }}&#64;{{ shortSha(run.commitSha) }}</code>
@@ -150,7 +150,7 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
               <a class="entry" [routerLink]="['/runs', run.id]">
                 <span class="line">
                   <app-status-badge [status]="run.status" />
-                  <span class="repo">{{ run.repoId }}</span>
+                  <span class="repo">{{ repoLabel(run) }}</span>
                 </span>
                 <span class="line">
                   <code class="ref">{{ run.branch }}&#64;{{ shortSha(run.commitSha) }}</code>
@@ -261,6 +261,7 @@ export class ActiveRuns {
   readonly changed = output<void>();
 
   protected readonly shortSha = shortSha;
+  protected readonly repoLabel = runRepositoryLabel;
   protected readonly formatDayTime = formatDayTime;
 
   protected readonly state = signal<Loadable<readonly CiRunDto[]>>(LOADING);

@@ -14,7 +14,7 @@
 @if (value(); as run) {
   <header class="head">
     <h1>
-      <span class="repo">{{ run.repoId }}</span> · {{ run.branch }} ·
+      <span class="repo">{{ repoLabel(run) }}</span> · {{ run.branch }} ·
       <code>{{ shortSha(run.commitSha) }}</code>
     </h1>
     <div class="head-right">
@@ -92,7 +92,7 @@
 
     <dt>Repository</dt>
     <dd>
-      <a [routerLink]="['/']" [queryParams]="repoQuery(run.repoId)">{{ run.repoId }}</a>
+      <a [routerLink]="['/']" [queryParams]="repoQuery(run)">{{ repoLabel(run) }}</a>
       @if (owner(); as project) {
         · project {{ project.name }}
       } @else if (unattributed()) {

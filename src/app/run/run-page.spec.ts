@@ -39,6 +39,8 @@ describe('RunPage', () => {
   const run = (over: Partial<CiRunDto> = {}): CiRunDto => ({
     id: 'da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61',
     repoId: 'qits-ci',
+    projectId: null,
+    repoName: null,
     branch: 'main',
     commitSha: '9f2c1ab3d4e5',
     status: 'SUCCESS',
@@ -492,6 +494,51 @@ describe('RunPage', () => {
 
     expect(text()).toContain('· not claimed by any project');
     expect(repoLink()?.getAttribute('href')).toBe('/?repo=legacy-build-box');
+  });
+
+  /**
+   * The public pair is what a person reads. The storage id stays the key underneath it — the
+   * `?repo=` parameter is still the id, because that is what the tree is keyed by.
+   */
+  it('labels the run by the repository name it announced, and still keys the link by the id', async () => {
+    const id = '3f6c1a9e-0b25-4d1e-9c77-2a0e5b8f4d31';
+    await open();
+    expectRun().flush(run({ repoId: id, projectId: 'p1', repoName: 'qits-ci' }));
+    await settle();
+    await flushAttribution({ p1: [id] });
+
+    expect(text()).toContain('qits-ci');
+    expect(text()).not.toContain(id);
+    expect(repoLink()?.getAttribute('href')).toBe(`/?project=p1&repo=${id}`);
+  });
+
+  /**
+   * A run that arrived by the public address knows its project first-hand, so the index is asked
+   * only to turn that id into a name. Here it holds no repository at all and the attribution is
+   * still right — which the id-keyed join alone could not have been.
+   */
+  it('takes the project from the run itself rather than from the repository join', async () => {
+    await open();
+    expectRun().flush(run({ projectId: 'p1', repoName: 'qits-ci' }));
+    await settle();
+    await flushAttribution({ p1: [] });
+
+    expect(text()).toContain('· project qits');
+    expect(text()).not.toContain('not claimed by any project');
+  });
+
+  /** The deep link survives a failed lookup when the run carried the project itself. */
+  it('still points the tree at the project when the lookup failed but the run knew it', async () => {
+    await open();
+    expectRun().flush(run({ projectId: 'p1', repoName: 'qits-ci' }));
+    await settle();
+    http.expectOne('/projects/api/projects').flush(null, { status: 503, statusText: 'Down' });
+    await settle();
+
+    expect(repoLink()?.getAttribute('href')).toBe('/?project=p1&repo=qits-ci');
+    // A project *name* it does not have, so it claims none — and denies none either.
+    expect(text()).not.toContain('project qits');
+    expect(text()).not.toContain('not claimed by any project');
   });
 
   it('claims nothing at all when the lookup itself fails', async () => {

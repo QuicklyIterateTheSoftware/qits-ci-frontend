@@ -97,10 +97,21 @@ export interface CiLiveStepDto {
   readonly output: string;
 }
 
-/** A CI run. `steps` is null in listings; `live` is non-null only while `status` is `RUNNING`. */
+/**
+ * A CI run. `steps` is null in listings; `live` is non-null only while `status` is `RUNNING`.
+ *
+ * `repoId` is the **storage** id — an opaque key, and the one every run is found and grouped by.
+ * `projectId` and `repoName` are the repository's **public** coordinate, the pair that spells its
+ * address `/git/<projectId>/<repoName>`, and they are additive rather than a replacement. Both are
+ * null on a run whose push was id-addressed and on every run recorded before the identity campaign,
+ * so a reader is labelled by `repoName` when it is there and by `repoId` when it is not — see
+ * {@link runRepositoryLabel}. Keys never move: a query, a route and a map stay on `repoId`.
+ */
 export interface CiRunDto {
   readonly id: string;
   readonly repoId: string;
+  readonly projectId: string | null;
+  readonly repoName: string | null;
   readonly branch: string;
   readonly commitSha: string;
   readonly status: CiRunStatus;
@@ -118,7 +129,12 @@ export interface CiRunDto {
   readonly live: CiLiveStepDto | null;
 }
 
-/** The repository ids qits-ci has runs for. Ids it *observed*, not repositories it owns. */
+/**
+ * The repository ids qits-ci has runs for. Storage ids it *observed*, not repositories it owns.
+ *
+ * Bare strings, so there is no name in here at all. A row drawn from this list takes its label from
+ * the matching {@link CiRepositorySummaryDto}, which carries the name the newest run announced.
+ */
 export interface CiRepositoriesResponse {
   readonly repositoryIds: readonly string[];
 }
@@ -135,9 +151,15 @@ export interface CiRunsResponse {
  * entry in the response. Both absences mean the same thing on screen — **no badge** — because a
  * placeholder badge on a repository that has never built would be an invented status, and the whole
  * point of these two badges is that they report.
+ *
+ * `projectId` and `repoName` are read off the newest run rather than stored anywhere — qits-ci owns
+ * no repository row, so what it knows about a name is whatever the last push told it — and are null
+ * when that run carried none.
  */
 export interface CiRepositorySummaryDto {
   readonly repositoryId: string;
+  readonly projectId: string | null;
+  readonly repoName: string | null;
   readonly lastRun: CiRunDto | null;
   readonly lastMainRun: CiRunDto | null;
 }
@@ -165,7 +187,11 @@ export interface ProjectDto {
 
 /**
  * A repository. `name` is the registered name and the tree's label; `id` stays the identity, because
- * `id` is the git-host directory name and therefore the join key `CiRun.repoId` carries.
+ * `id` is the git host's opaque storage key and therefore the join key `CiRun.repoId` carries.
+ *
+ * The pair `(projectId, name)` is the repository's public address; `id` is addressable by nobody
+ * outside qits-projects. So `name` is what a person reads and `id` is what this client joins on,
+ * and neither stands in for the other.
  *
  * `name` is typed nullable rather than required: release A added the column without backfilling
  * every row, so a row written earlier can still answer null — see {@link repositoryLabel} for what

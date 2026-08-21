@@ -15,7 +15,7 @@ import type { CiRepositorySummaryDto, CiRunDto, ProjectDto, RepositoryDto } from
 import { ProjectsApi } from '../api/projects-api';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
-import { formatDayTime, repositoryLabel, shortSha } from '../ui/format';
+import { formatDayTime, named, repositoryLabel, shortSha } from '../ui/format';
 import { IDLE, LOADING, failed, ready, type Loadable } from '../ui/loadable';
 import { StatusBadge } from '../ui/status-badge';
 import { ActiveRuns } from './active-runs';
@@ -86,8 +86,8 @@ function withEntry<T>(map: ReadonlyMap<string, T>, key: string, value: T): Reado
  * so the run page never pays for it again, and the P requests it costs are the same P requests the
  * old design paid the moment anybody opened the projects. Expanding a project is now free.
  *
- * **The second of those is what makes the tree honest.** qits-ci keys a run by `repoId`, which is
- * the shared git-host directory name; a repository qits-projects provisioned has that name as its
+ * **The second of those is what makes the tree honest.** qits-ci keys a run by `repoId`, the git
+ * host's opaque storage key; a repository qits-projects provisioned has that key as its
  * `Repository.id`, but the platform's own repositories were seeded straight onto the git host with
  * no project row at all. A tree that only walked projects → repositories → runs would therefore
  * render, on this platform, as a list of projects with nothing under them while the entire run
@@ -447,6 +447,19 @@ export class TreePage {
   /** The two headline runs for a row, or undefined for a repository qits-ci has no runs for. */
   protected summaryOf(repoId: string): CiRepositorySummaryDto | undefined {
     return this.summaries().get(repoId);
+  }
+
+  /**
+   * The label for a bucket row, which has no repository record behind it to take a name from.
+   *
+   * The bucket is drawn from `GET /ci/api/repositories` — bare storage ids, no names — so the name
+   * comes from the summary the same id has, which qits-ci reads off that repository's newest run.
+   * No summary, or a run that announced no name, and the storage id is the label: there is nothing
+   * else true to draw. The key is the id in every case, which is why this is a label function and
+   * not a rename of `repoId`.
+   */
+  protected bucketLabel(repoId: string): string {
+    return named(this.summaries().get(repoId)?.repoName) ?? repoId;
   }
 
   /**

@@ -21,6 +21,7 @@ import {
   formatDuration,
   formatElapsed,
   formatInstant,
+  runRepositoryLabel,
   shortSha,
   stripAnsi,
 } from '../ui/format';
@@ -56,6 +57,7 @@ export class RunPage {
   protected readonly formatInstant = formatInstant;
   protected readonly formatClock = formatClock;
   protected readonly shortSha = shortSha;
+  protected readonly repoLabel = runRepositoryLabel;
   protected readonly stripAnsi = stripAnsi;
   protected readonly none = NONE;
 
@@ -72,14 +74,18 @@ export class RunPage {
    * Who claims this run's repository, looked up beside the run itself.
    *
    * The design said this page makes a single request, and that was wrong in a way only the live
-   * platform showed: a run knows its `repoId` and nothing else, so a page that renders only that id
-   * can offer no link back into the tree except `?repo=<id>` — which lands on a tree with nothing
+   * platform showed: a run knew its `repoId` and nothing else, so a page that rendered only that id
+   * could offer no link back into the tree except `?repo=<id>` — which lands on a tree with nothing
    * expanded, and beside a bucket header still claiming every repository is unattributed. The join
    * costs `1 + P` small requests, it is cached for the whole application, and it runs in parallel
    * with the run read rather than after it, so it delays nothing on screen.
    *
-   * A failed lookup says *nothing*: the link falls back to the bare `?repo=`, and the page does not
-   * claim the repository is unattributed on the strength of a request that never answered.
+   * A run carrying its own `projectId` shortens that: the deep link is complete without the index,
+   * which is asked only for the project's *name*. It is still asked, because a page that printed an
+   * id where it says "project" would be reporting the wrong thing.
+   *
+   * A failed lookup says *nothing*: the link keeps whatever the run itself knows, and the page does
+   * not claim the repository is unattributed on the strength of a request that never answered.
    */
   private readonly claim = signal<Loadable<Attribution>>(LOADING);
 
@@ -134,11 +140,24 @@ export class RunPage {
 
   protected readonly steps = computed<readonly CiStepDto[]>(() => this.value()?.steps ?? []);
 
-  /** The project that claims this run's repository, once the lookup has answered and named one. */
+  /**
+   * The project that claims this run's repository, once the lookup has answered and named one.
+   *
+   * **The run's own `projectId` is preferred over the join.** A run that arrived by the public
+   * address knows its project first-hand, so the index is only asked to turn that id into a name —
+   * no repository lookup, and no chance of the two disagreeing. The id-keyed join stays as the
+   * fallback for a run that carries no project: an id-addressed push, or a row older than the
+   * campaign. Both paths still need the index, because a run knows a project *id* and this page
+   * prints a project *name*.
+   */
   protected readonly owner = computed<ProjectDto | null>(() => {
     const claim = this.claim();
     const run = this.value();
-    return claim.kind === 'ready' && run ? (claim.value.owners.get(run.repoId) ?? null) : null;
+    if (claim.kind !== 'ready' || !run) {
+      return null;
+    }
+    const declared = run.projectId ? claim.value.projects.get(run.projectId) : undefined;
+    return declared ?? claim.value.owners.get(run.repoId) ?? null;
   });
 
   /** Said only on a lookup that succeeded and named nobody. A failed lookup claims nothing. */
@@ -213,12 +232,16 @@ export class RunPage {
   }
 
   /**
-   * Where the repository link points. Two parameters when the owner is known, so following it opens
-   * the tree at the right branch; one when it is not, which is the bucket the tree draws anyway.
+   * Where the repository link points. Two parameters when the project is known, so following it
+   * opens the tree at the right branch; one when it is not, which is the bucket the tree draws
+   * anyway.
+   *
+   * The run's own `projectId` is taken first and the index second, so a run that arrived by the
+   * public address still deep-links correctly when the attribution lookup failed.
    */
-  protected repoQuery(repoId: string): Record<string, string> {
-    const owner = this.owner();
-    return owner ? { project: owner.id, repo: repoId } : { repo: repoId };
+  protected repoQuery(run: CiRunDto): Record<string, string> {
+    const project = run.projectId ?? this.owner()?.id;
+    return project ? { project, repo: run.repoId } : { repo: run.repoId };
   }
 
   /**

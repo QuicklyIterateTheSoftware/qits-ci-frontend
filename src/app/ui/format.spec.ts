@@ -6,6 +6,7 @@ import {
   formatElapsed,
   formatInstant,
   repositoryLabel,
+  runRepositoryLabel,
   shortId,
   shortSha,
   stripAnsi,
@@ -50,6 +51,23 @@ describe('format', () => {
     expect(label('https://github.com/QuicklyIterate/qits-ci.git')).toBe('qits-ci');
     expect(label('git@github.com:QuicklyIterate/qits-ci.git')).toBe('qits-ci');
     expect(label('/data/repositories/qits-gateway/origin/')).toBe('origin');
+  });
+
+  it('labels a run by the repository name it announced', () => {
+    expect(
+      runRepositoryLabel({ repoId: '3f6c1a9e-0b25-4d1e-9c77-2a0e5b8f4d31', repoName: 'qits-ci' }),
+    ).toBe('qits-ci');
+  });
+
+  /**
+   * A mirror sync and every run older than the identity campaign carry no name. The storage id is
+   * the only true thing left to draw, and an empty string from a serialiser counts as no name.
+   */
+  it('falls back to the storage id for a run that announced no name', () => {
+    const id = '3f6c1a9e-0b25-4d1e-9c77-2a0e5b8f4d31';
+
+    expect(runRepositoryLabel({ repoId: id, repoName: null })).toBe(id);
+    expect(runRepositoryLabel({ repoId: id, repoName: '' })).toBe(id);
   });
 
   /** A row with neither field draws no label — it must not throw and empty the tree around it. */

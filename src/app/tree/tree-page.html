@@ -106,7 +106,7 @@
                 }
                 @for (repoId of unclaimed(); track repoId) {
                   <app-tree-node
-                    [label]="repoId"
+                    [label]="bucketLabel(repoId)"
                     [expanded]="expandedRepos().has(repoId)"
                     (toggled)="toggleRepository(repoId)"
                   >
