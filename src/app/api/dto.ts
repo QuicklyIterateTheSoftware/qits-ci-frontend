@@ -26,6 +26,9 @@
  * with the active-runs list: a platform-wide "what is in flight" is only true if it counts the runs
  * that have not started yet, and a run waiting for a daemon is exactly the thing an operator wants
  * to see before it becomes a wait they are wondering about.
+ *
+ * `TIMED_OUT` is terminal: a step hit its deadline — 30 minutes by default — so the daemon stopped
+ * it, and the run carries that outcome.
  */
 export type CiRunStatus =
   | 'QUEUED'
@@ -33,10 +36,21 @@ export type CiRunStatus =
   | 'SUCCESS'
   | 'FAILED'
   | 'CANCELLED'
-  | 'CONFIG_ERROR';
+  | 'CONFIG_ERROR'
+  | 'TIMED_OUT';
 
-/** A step's outcome. `PENDING` and `RUNNING` are legacy on this enum and never written. */
-export type CiStepStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED';
+/**
+ * A step's outcome. `PENDING` and `RUNNING` are legacy on this enum and never written.
+ *
+ * `TIMED_OUT` is terminal, and the step it is written on is the one that hit its deadline.
+ */
+export type CiStepStatus =
+  | 'PENDING'
+  | 'RUNNING'
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'SKIPPED'
+  | 'TIMED_OUT';
 
 /** What caused a run: a push, or an event that matched a committed trigger. */
 export type CiTriggerType = 'POST_RECEIVE' | 'EVENT';

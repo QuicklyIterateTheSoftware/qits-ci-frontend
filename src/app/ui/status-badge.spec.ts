@@ -21,6 +21,10 @@ describe('StatusBadge', () => {
     expect(await toneOf('CONFIG_ERROR')).toContain('warning');
   });
 
+  it('reads TIMED_OUT as danger, because a missed deadline is a red outcome', async () => {
+    expect(await toneOf('TIMED_OUT')).toContain('danger');
+  });
+
   it('reads a step’s SKIPPED as neutral, because it is not a failure', async () => {
     expect(await toneOf('SKIPPED')).toContain('neutral');
   });

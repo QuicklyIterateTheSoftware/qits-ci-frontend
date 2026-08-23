@@ -9,7 +9,8 @@ import { QitsBadge, type QitsBadgeTone } from '@qits/ui-components';
  * so this is a translation between two vocabularies, not styling.
  *
  * One map covers both enums because they overlap and never collide: `SUCCESS` and `FAILED` mean the
- * same thing on a run and on a step, and `SKIPPED` only ever appears on a step.
+ * same thing on a run and on a step, and `SKIPPED` only ever appears on a step. `TIMED_OUT` is
+ * `danger` too — a step that ran out of its deadline is a red outcome, like a step that failed.
  *
  * `QUEUED` is `neutral` on purpose. A queued run has produced no outcome at all — nothing has gone
  * right, nothing has gone wrong, and nothing is even happening yet — so it reads as the absence of
@@ -24,6 +25,7 @@ const TONES: Readonly<Record<string, QitsBadgeTone>> = {
   FAILED: 'danger',
   CANCELLED: 'neutral',
   CONFIG_ERROR: 'warning',
+  TIMED_OUT: 'danger',
   SKIPPED: 'neutral',
   PENDING: 'neutral',
 };
