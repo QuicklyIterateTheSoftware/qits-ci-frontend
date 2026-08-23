@@ -1,6 +1,6 @@
 {
   "name": "qits-spa-ci",
-  "version": "2026.823.60555",
+  "version": "2026.823.165819",
   "private": true,
   "description": "The CI service's frontend: an Angular application that consumes @qits/ui-components from qits' own npm registry. It ships no image \u2014 qits-ci serves it via Quinoa at /ci/.",
   "license": "MIT",
