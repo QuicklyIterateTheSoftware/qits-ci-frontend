@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { QitsBadge, QitsButton } from '@qits/ui-components';
+import { QITS_SCOPE, QitsBadge, QitsButton } from '@qits/ui-components';
 import { RepositoryAttribution, type Attribution } from '../api/attribution';
 import { CiApi } from '../api/ci-api';
 import type { CiRepositorySummaryDto, CiRunDto, ProjectDto, RepositoryDto } from '../api/dto';
@@ -119,6 +119,18 @@ export class TreePage {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
+  /**
+   * What the address says is on screen, which on this page is a pre-filter rather than a decoration.
+   *
+   * `/qits/services/qits-ci/` is a request for one repository's runs, so the tree draws that
+   * repository open inside its project and nothing else. The ids come from the chrome's own project
+   * and repository listings, so they arrive a moment after the first paint; until then the page is
+   * simply the unscoped tree, which is the same tree with more in it.
+   */
+  private readonly qitsScope = inject(QITS_SCOPE);
+
+  protected readonly scope = this.qitsScope.scope;
+
   protected readonly repositoryLabel = repositoryLabel;
 
   /** The project spine. Its failure is the only one that can take the whole page down. */
@@ -180,10 +192,19 @@ export class TreePage {
   /** Repository ids already put through the lookup, so it happens at most once for each. */
   private readonly placed = new Set<string>();
 
-  /** The projects, once they are here; an empty list otherwise, so the template stays flat. */
+  /**
+   * The projects, once they are here; an empty list otherwise, so the template stays flat.
+   *
+   * A scoped address narrows this to the one project it names. Everything downstream is written
+   * against this list — which projects are open by default, how many the header counts — so
+   * narrowing here is what makes the whole page about one project rather than about all of them
+   * with one highlighted.
+   */
   protected readonly projectList = computed(() => {
     const state = this.projects();
-    return state.kind === 'ready' ? state.value : [];
+    const all = state.kind === 'ready' ? state.value : [];
+    const scoped = this.qitsScope.projectId();
+    return scoped ? all.filter((project) => project.id === scoped) : all;
   });
 
   /**
@@ -191,11 +212,19 @@ export class TreePage {
    * an empty one — means exactly what it names, so a shared URL survives being shared.
    */
   protected readonly expandedProjects = computed<ReadonlySet<string>>(() => {
+    const scoped = this.qitsScope.projectId();
+    // A repository in the address is an instruction, not a default: the project holding it is open
+    // whatever `?project=` was carried over from wherever the reader came from.
+    if (scoped && this.qitsScope.repositoryId()) return new Set([scoped]);
     const param = this.queryParams().get('project');
     return param === null ? new Set(this.projectList().map((project) => project.id)) : idSet(param);
   });
 
-  protected readonly expandedRepos = computed(() => idSet(this.queryParams().get('repo')));
+  protected readonly expandedRepos = computed(() => {
+    const ids = idSet(this.queryParams().get('repo'));
+    const scoped = this.qitsScope.repositoryId();
+    return scoped ? new Set([...ids, scoped]) : ids;
+  });
 
   /**
    * Both roots failed, which is the one unrecoverable state: with neither the projects nor the
@@ -251,6 +280,25 @@ export class TreePage {
   protected readonly knownRepositoryCount = computed(() => {
     const ids = this.repositoryIds();
     return ids.kind === 'ready' ? ids.value.length : 0;
+  });
+
+  /**
+   * Whether the unattributed bucket is drawn.
+   *
+   * It is the one node that is about *no* project, so an address that names a project is an address
+   * it has nothing to answer. Unscoped it stays drawn even when empty, because "0 repositories with
+   * no project" is information.
+   */
+  protected readonly showBucket = computed(() => this.qitsScope.projectId() === undefined);
+
+  /** What the page says it is showing — the scope when there is one, the platform-wide count when not. */
+  protected readonly lede = computed(() => {
+    const scope = this.scope();
+    if (scope.repository) {
+      return `${scope.project} · ${scope.repository} — the runs of one repository.`;
+    }
+    if (scope.project) return `${scope.project} — the runs of one project.`;
+    return `Projects → repository → trigger. ${this.summary()}`;
   });
 
   protected readonly summary = computed(() => {

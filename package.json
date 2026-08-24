@@ -1,8 +1,8 @@
 {
   "name": "qits-spa-ci",
-  "version": "2026.823.165819",
+  "version": "2026.824.165318",
   "private": true,
-  "description": "The CI service's frontend: an Angular application that consumes @qits/ui-components from qits' own npm registry. It ships no image \u2014 qits-ci serves it via Quinoa at /ci/.",
+  "description": "The CI service's frontend: an Angular application that consumes @qits/ui-components from qits' own npm registry. It ships no image — qits-ci serves it via Quinoa at the root of its own host.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -23,7 +23,7 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
-    "@qits/ui-components": "^2026.823.60205",
+    "@qits/ui-components": "2026.824.155425",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

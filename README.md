@@ -1,17 +1,24 @@
 # QitsSpaCi
 
-The CI explorer: the read-only view of what qits-ci has run, served by qits-ci itself at `/ci/`
-through Quinoa. Two screens, no forms, and one write.
+The CI explorer: the read-only view of what qits-ci has run, served by qits-ci itself at the root of
+its own host (`ci.<env>.<domain>/`) through Quinoa. Two screens, no forms, and one write.
 
-- **`/ci/`** — the run tree. Projects (from qits-projects) → repositories → trigger-type groups →
+- **`/`** — the run tree. Projects (from qits-projects) → repositories → trigger-type groups →
   runs. Every level loads on expansion and caches; the page itself makes two requests, both flat
-  lists. Expansion is carried in the query parameters (`/ci/?project=…&repo=…`), so it is
+  lists. Expansion is carried in the query parameters (`/?project=…&repo=…`), so it is
   bookmarkable and the back button collapses.
-- **`/ci/runs/<runId>`** — one run: provenance, steps, step output, and while it is `RUNNING` the
+- **`/runs/<runId>`** — one run: provenance, steps, step output, and while it is `RUNNING` the
   live step and a cancel button. It polls every three seconds while the run is running, stops on the
   first terminal answer, and pauses while the tab is hidden.
 
-The tree draws a **`Not claimed by any project`** bucket, always, from `GET /ci/api/repositories`.
+Both screens answer at a **scoped** address too — `/<projectSlug>/<category>/<repoName>/` and
+`/<projectSlug>/<category>/<repoName>/runs/<runId>` — which is the platform-wide URL grammar every
+SPA here shares. The pages read that scope from `@qits/ui-components` rather than from route
+parameters, so one component serves both spellings: scoped, the tree draws the named repository open
+inside its project and leaves out everything else, including the unattributed bucket.
+
+Unscoped, the tree draws a **`Not claimed by any project`** bucket, always, from
+`GET /ci/api/repositories`.
 qits-ci keys a run by the git-host repository directory name, and the platform's own repositories
 were seeded onto the git host with no qits-projects row — so that bucket is where the run history
 actually is until those repositories are onboarded, and hiding it would make the tree look empty
@@ -23,7 +30,7 @@ runs`** — every `QUEUED` or `RUNNING` run on the platform, whatever repository
 /ci/api/runs/finished?limit=5`, oldest at the top so it reads forwards in time down into the runs
 still in flight. Both are re-read on one ten-second tick, which is also how a completion is
 detected: a run leaves the first list and arrives in the second on the same tick, with no per-run
-read anywhere. A run that starts *and* finishes between two ticks is never drawn as active and still
+read anywhere. A run that starts _and_ finishes between two ticks is never drawn as active and still
 lands in the stack.
 
 The finished stack is **append-only for as long as the page is open** — five rows become six, then
@@ -46,9 +53,10 @@ ng serve
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The
 application will automatically reload whenever you modify any of the source files.
 
-`proxy.conf.json` forwards `/ci/api` and `/projects/api` to a gateway on `localhost:8080`, because
-`ng serve` puts no gateway in front and both screens read across two services. In a deployment every
-call is a same-origin path behind the real gateway, which is what carries the session cookie.
+`proxy.conf.json` forwards `/ci/api`, `/projects/api` and `/main-navigation` to the edge on
+`localhost:8080`, because `ng serve` puts no edge in front and both screens read across two services
+plus the chrome. APIs keep their segment on every host, so in a deployment every one of those is a
+same-origin path, which is what carries the session cookie.
 
 ## Code scaffolding
 

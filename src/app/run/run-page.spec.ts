@@ -4,6 +4,7 @@ import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { provideQitsScope } from '@qits/ui-components';
 import { routes } from '../app.routes';
 import type { CiRunDto, CiStepDto, ProjectDto } from '../api/dto';
 import { POLL_INTERVAL_MS } from './run-page';
@@ -66,6 +67,9 @@ describe('RunPage', () => {
         provideLocationMocks(),
         provideHttpClient(),
         provideHttpClientTesting(),
+        // The pages read what the address says is in scope; with no project list behind it this
+        // resolves to nothing, which is the unscoped tree these specs are about.
+        provideQitsScope('repository'),
       ],
     });
     http = TestBed.inject(HttpTestingController);

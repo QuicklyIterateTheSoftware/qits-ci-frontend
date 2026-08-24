@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink, convertToParamMap } from '@angular/router';
-import { QitsButton } from '@qits/ui-components';
+import { QITS_SCOPE, QitsButton, scopeCommands } from '@qits/ui-components';
 import { RepositoryAttribution, type Attribution } from '../api/attribution';
 import { CiApi } from '../api/ci-api';
 import { isTerminal, type CiRunDto, type CiStepDto, type ProjectDto } from '../api/dto';
@@ -53,6 +53,18 @@ export class RunPage {
   private readonly attribution = inject(RepositoryAttribution);
   private readonly route = inject(ActivatedRoute);
   private readonly document = inject(DOCUMENT);
+
+  /**
+   * Where this page's own links start.
+   *
+   * The same run is reachable bare (`/runs/42`) and under the repository the reader came in through
+   * (`/qits/services/qits-ci/runs/42`). A link written `/` would drop them out of the second form
+   * without saying so, so every absolute link on this page is prefixed with whatever the address
+   * currently says is in scope.
+   */
+  private readonly qitsScope = inject(QITS_SCOPE);
+
+  protected readonly home = computed<string[]>(() => [...scopeCommands(this.qitsScope.scope())]);
 
   protected readonly formatInstant = formatInstant;
   protected readonly formatClock = formatClock;

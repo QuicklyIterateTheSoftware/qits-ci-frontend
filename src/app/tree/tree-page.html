@@ -1,7 +1,7 @@
 <header class="head">
   <div>
     <h1>CI runs</h1>
-    <p class="lede">Projects → repository → trigger. {{ summary() }}</p>
+    <p class="lede">{{ lede() }}</p>
   </div>
   <qits-button variant="secondary" size="sm" (pressed)="reload()">Refresh</qits-button>
 </header>
@@ -86,53 +86,55 @@
           }
         }
 
-        <li class="bucket">
-          <app-tree-node
-            label="Not claimed by any project"
-            [meta]="knownRepositoryCount() + ' repositories with CI runs'"
-            [expanded]="bucketOpen()"
-            (toggled)="toggleBucket()"
-          >
-            @if (bucketOpen()) {
-              <app-async
-                [state]="repositoryIds()"
-                loadingLabel="Loading the repositories qits-ci knows"
-                errorLabel="Could not load the repositories qits-ci knows"
-                (retry)="loadRepositoryIds()"
-              />
-              @if (repositoryIds().kind === 'ready') {
-                @if (unclaimed().length === 0) {
-                  <app-empty message="Every repository with CI runs is claimed by a project." />
-                }
-                @for (repoId of unclaimed(); track repoId) {
-                  <app-tree-node
-                    [label]="bucketLabel(repoId)"
-                    [expanded]="expandedRepos().has(repoId)"
-                    (toggled)="toggleRepository(repoId)"
-                  >
-                    <span badges>
-                      @if (summaryOf(repoId); as summary) {
-                        @if (summary.lastRun; as last) {
-                          <app-status-badge [status]="last.status" />
+        @if (showBucket()) {
+          <li class="bucket">
+            <app-tree-node
+              label="Not claimed by any project"
+              [meta]="knownRepositoryCount() + ' repositories with CI runs'"
+              [expanded]="bucketOpen()"
+              (toggled)="toggleBucket()"
+            >
+              @if (bucketOpen()) {
+                <app-async
+                  [state]="repositoryIds()"
+                  loadingLabel="Loading the repositories qits-ci knows"
+                  errorLabel="Could not load the repositories qits-ci knows"
+                  (retry)="loadRepositoryIds()"
+                />
+                @if (repositoryIds().kind === 'ready') {
+                  @if (unclaimed().length === 0) {
+                    <app-empty message="Every repository with CI runs is claimed by a project." />
+                  }
+                  @for (repoId of unclaimed(); track repoId) {
+                    <app-tree-node
+                      [label]="bucketLabel(repoId)"
+                      [expanded]="expandedRepos().has(repoId)"
+                      (toggled)="toggleRepository(repoId)"
+                    >
+                      <span badges>
+                        @if (summaryOf(repoId); as summary) {
+                          @if (summary.lastRun; as last) {
+                            <app-status-badge [status]="last.status" />
+                          }
+                          @if (summary.lastMainRun; as main) {
+                            <qits-badge tone="neutral" [label]="mainLabel(main)" />
+                          }
                         }
-                        @if (summary.lastMainRun; as main) {
-                          <qits-badge tone="neutral" [label]="mainLabel(main)" />
-                        }
+                      </span>
+                      @if (expandedRepos().has(repoId)) {
+                        <app-repo-runs
+                          [node]="runsOf(repoId)"
+                          (reload)="loadRuns(repoId)"
+                          (showAll)="loadAllRuns(repoId)"
+                        />
                       }
-                    </span>
-                    @if (expandedRepos().has(repoId)) {
-                      <app-repo-runs
-                        [node]="runsOf(repoId)"
-                        (reload)="loadRuns(repoId)"
-                        (showAll)="loadAllRuns(repoId)"
-                      />
-                    }
-                  </app-tree-node>
+                    </app-tree-node>
+                  }
                 }
               }
-            }
-          </app-tree-node>
-        </li>
+            </app-tree-node>
+          </li>
+        }
       </ul>
     }
   </div>
