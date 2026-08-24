@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { QITS_SCOPE, scopeCommands } from '@qits/ui-components';
 import { CiApi } from '../api/ci-api';
 import type { CiRunDto } from '../api/dto';
 import { Async } from '../ui/async';
@@ -111,7 +112,7 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
       <ul class="stack">
         @for (run of finished(); track run.id) {
           <li>
-            <a class="entry" [routerLink]="['/runs', run.id]">
+            <a class="entry" [routerLink]="[...home(), 'runs', run.id]">
               <span class="line">
                 <app-status-badge [status]="run.status" />
                 <span class="repo">{{ repoLabel(run) }}</span>
@@ -147,7 +148,7 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
         <ul class="active">
           @for (run of runs(); track run.id) {
             <li>
-              <a class="entry" [routerLink]="['/runs', run.id]">
+              <a class="entry" [routerLink]="[...home(), 'runs', run.id]">
                 <span class="line">
                   <app-status-badge [status]="run.status" />
                   <span class="repo">{{ repoLabel(run) }}</span>
@@ -238,6 +239,16 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
 })
 export class ActiveRuns {
   private readonly api = inject(CiApi);
+  private readonly qitsScope = inject(QITS_SCOPE, { optional: true });
+
+  /**
+   * The address this application is being read at: `/`, `/qits/` or `/qits/services/qits-ci/`.
+   *
+   * A run link has to start from it, or following one out of a scoped rail would drop the reader
+   * back to the unscoped host. Optional, because this component is also mounted in specs that
+   * provide no scope — and unscoped is exactly what `scopeCommands` answers for that.
+   */
+  protected readonly home = computed<string[]>(() => [...scopeCommands(this.qitsScope?.scope())]);
   private readonly document = inject(DOCUMENT);
 
   /**

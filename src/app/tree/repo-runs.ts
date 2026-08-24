@@ -1,6 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { QitsButton } from '@qits/ui-components';
+import { QITS_SCOPE, QitsButton, scopeCommands } from '@qits/ui-components';
 import { CI_TRIGGER_TYPES, type CiRunDto, type CiTriggerType } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
@@ -76,7 +84,7 @@ interface RunGroup {
                 <ul class="runs">
                   @for (run of group.runs; track run.id) {
                     <li>
-                      <a class="run" [routerLink]="['/runs', run.id]">
+                      <a class="run" [routerLink]="[...home(), 'runs', run.id]">
                         <app-status-badge [status]="run.status" />
                         <code class="run-id">{{ shortId(run.id) }}</code>
                         <span class="branch">{{ run.branch }}</span>
@@ -164,6 +172,17 @@ interface RunGroup {
   `,
 })
 export class RepoRuns {
+  private readonly qitsScope = inject(QITS_SCOPE, { optional: true });
+
+  /**
+   * The address this application is being read at: `/`, `/qits/` or `/qits/services/qits-ci/`.
+   *
+   * A run link has to start from it, or following one out of a scoped tree would drop the reader
+   * back to the unscoped host. Optional, because this component is also mounted in specs that
+   * provide no scope — and unscoped is exactly what `scopeCommands` answers for that.
+   */
+  protected readonly home = computed<string[]>(() => [...scopeCommands(this.qitsScope?.scope())]);
+
   /** The repository's runs, exactly as the page holds them. */
   readonly node = input.required<RunsNode>();
 

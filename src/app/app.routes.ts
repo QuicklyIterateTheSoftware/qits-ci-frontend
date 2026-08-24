@@ -41,20 +41,25 @@ export const categoryIsKnown: CanMatchFn = (_route, segments) =>
   QITS_CATEGORIES.includes(segments[1]?.path as QitsCategory);
 
 /**
- * Every route inside the platform chrome, twice: once bare, once under a repository.
+ * Every route inside the platform chrome, three times: bare, under a project, under a repository.
  *
  * `QitsMainLayout` is the root *route* component rather than something the shell templates, so the
  * bar and the navigation mount once and survive every navigation beneath them; only the outlet's
  * content changes.
  *
- * **The same components serve both forms.** `/runs/42` and `/qits/services/qits-ci/runs/42` are the
- * same page about the same run; the second says which repository the reader came in through, and
- * the pages read that from `QITS_SCOPE` rather than from the route parameters — which is why the
- * scoped branch declares no readers of `:project`, `:category` or `:repository` at all.
+ * **The same components serve all three forms.** `/runs/42`, `/qits/runs/42` and
+ * `/qits/services/qits-ci/runs/42` are the same page about the same run; the later ones say which
+ * project or repository the reader came in through, and the pages read that from `QITS_SCOPE`
+ * rather than from the route parameters — which is why the scoped branches declare no readers of
+ * `:project`, `:category` or `:repository` at all.
  *
- * **Own routes come first.** `/runs/42` is this application's own address and must not be read as a
- * project called `runs`; putting the literal first makes it win outright, and `canMatch` above
- * keeps the scoped branch from claiming what is left.
+ * **The project form is what the chrome's project picker navigates to.** `UrlScope.select(slug)`
+ * goes to `/<slug>/`, so without this route picking a project here would land on the 404 page.
+ *
+ * **Order is the whole grammar**, and it works because the three vocabularies cannot collide: a
+ * category is never a slug, and a slug is never one of this app's own first segments. Own routes
+ * first, so `/runs/42` is this application's own address and never a project called `runs`; the
+ * repository form next, guarded on the category; the project form last, which takes what is left.
  *
  * The `**` route sits *inside* the layout: this application is served at the root of its own host,
  * so an unknown URL under it is an ordinary 404 and is drawn with the chrome around it.
@@ -66,6 +71,7 @@ export const routes: Routes = [
     children: [
       ...own,
       { path: ':project/:category/:repository', canMatch: [categoryIsKnown], children: own },
+      { path: ':project', children: own },
       { path: '**', component: NotFound },
     ],
   },

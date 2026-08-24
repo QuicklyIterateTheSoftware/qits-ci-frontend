@@ -11,16 +11,16 @@ import { RunPage } from './run/run-page';
 import { TreePage } from './tree/tree-page';
 
 /**
- * One page, two spellings of every address.
+ * One page, three spellings of every address.
  *
- * This application is served at the root of its own host, so `/runs/42` and
- * `/qits/services/qits-ci/runs/42` are the same run seen with and without the repository the reader
- * came in through. Both have to reach the same component, or the scoped form would be a second
- * application quietly diverging from the first.
+ * This application is served at the root of its own host, so `/runs/42`, `/qits/runs/42` and
+ * `/qits/services/qits-ci/runs/42` are the same run seen unscoped, under a project and under the
+ * repository the reader came in through. All three have to reach the same component, or a scoped
+ * form would be a second application quietly diverging from the first.
  *
  * The trap the guard exists for is the other direction: `runs` is not a project slug, and without
- * `canMatch` on the category the scoped branch would claim `/runs/42/anything` as a repository named
- * `anything`. So the literal routes are asserted to still win.
+ * `canMatch` on the category the repository branch would claim `/runs/42/anything` as a repository
+ * named `anything`. So the literal routes are asserted to still win.
  */
 describe('routes', () => {
   let harness: RouterTestingHarness;
@@ -70,6 +70,20 @@ describe('routes', () => {
   it('lets its own literal segment win over the scoped form', async () => {
     // `runs` would otherwise read as a project slug and `42` as a category.
     expect(await activated('/runs/42/nope')).toBe(NotFound);
+  });
+
+  it('serves the tree under a project', async () => {
+    // Where the chrome's project picker sends this app when a reader picks `qits`.
+    expect(await activated('/qits')).toBe(TreePage);
+  });
+
+  it('serves a run under a project', async () => {
+    expect(await activated('/qits/runs/42')).toBe(RunPage);
+  });
+
+  it('lets its own literal segment win over the project form', async () => {
+    // `/runs/42` is this app's run page, never a project called `runs` showing its tree.
+    expect(await activated('/runs/42')).toBe(RunPage);
   });
 
   it('refuses a middle segment that is not a category', async () => {
