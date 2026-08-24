@@ -1,4 +1,4 @@
-<p class="back"><a routerLink="/">← All runs</a></p>
+<p class="back"><a [routerLink]="home()">← All runs</a></p>
 
 @if (run().kind === 'loading') {
   <app-async [state]="run()" loadingLabel="Loading the run" />
@@ -6,7 +6,7 @@
 
 @if (missing()) {
   <p class="missing" role="alert">No run {{ runId() }}.</p>
-  <p><a routerLink="/">Back to the run tree</a></p>
+  <p><a [routerLink]="home()">Back to the run tree</a></p>
 } @else if (run().kind === 'error') {
   <app-async [state]="run()" errorLabel="Could not load this run" (retry)="load()" />
 }
@@ -79,7 +79,7 @@
       <dd>
         {{ run.cancellationReason }}
         @if (run.supersededByRunId) {
-          · <a [routerLink]="['/runs', run.supersededByRunId]">newer run</a>
+          · <a [routerLink]="[...home(), 'runs', run.supersededByRunId]">newer run</a>
         }
       </dd>
     }
@@ -92,7 +92,7 @@
 
     <dt>Repository</dt>
     <dd>
-      <a [routerLink]="['/']" [queryParams]="repoQuery(run)">{{ repoLabel(run) }}</a>
+      <a [routerLink]="home()" [queryParams]="repoQuery(run)">{{ repoLabel(run) }}</a>
       @if (owner(); as project) {
         · project {{ project.name }}
       } @else if (unattributed()) {

@@ -4,7 +4,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideLocationMocks } from '@angular/common/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideQitsNavigationLinks } from '@qits/ui-components';
+import { provideQitsNavigationLinks, provideQitsScope } from '@qits/ui-components';
 import { App } from './app';
 import { routes } from './app.routes';
 
@@ -14,15 +14,15 @@ import { routes } from './app.routes';
  * flush, and nothing pending to keep the harness from settling.
  */
 const NAV = [
-  { label: 'CI', href: '/ci/' },
-  { label: 'Deployments', href: '/platform-deployments/' },
-  { label: 'Artifacts', href: '/artifacts/' },
+  { label: 'CI', href: 'https://ci.dev.example.test/' },
+  { label: 'Deployments', href: 'https://deployments.dev.example.test/' },
+  { label: 'Artifacts', href: 'https://registry.dev.example.test/' },
 ] as const;
 
 /**
  * The shell owns one thing — the outlet — so that is what is asserted here, plus the route table
  * actually reaching the shared layout behind `''`. What the layout itself renders is
- * @qits/ui-components' own specs' business; this only checks that /ci/ gets it.
+ * @qits/ui-components' own specs' business; this only checks that the root route gets it.
  */
 describe('App', () => {
   beforeEach(() => {
@@ -35,6 +35,7 @@ describe('App', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideQitsNavigationLinks(NAV),
+        provideQitsScope('repository'),
       ],
     });
   });
@@ -53,8 +54,8 @@ describe('App', () => {
     const layout = harness.routeNativeElement as HTMLElement;
 
     // The count is the fixture's, not the platform's: how many front doors exist is a deployment
-    // fact the gateway answers, and asserting it belongs to qits-gateway's own spec. What this
-    // proves is that /ci/ mounts the chrome and the chrome renders what it is told.
+    // fact the edge answers, and asserting it belongs to the edge's own spec. What this proves is
+    // that the root route mounts the chrome and the chrome renders what it is told.
     expect(layout.querySelectorAll('.qits-layout-link')).toHaveLength(NAV.length);
     // The layout carries the outlet the pages of this SPA will one day render into.
     expect(layout.querySelector('main.qits-layout-content router-outlet')).not.toBeNull();
