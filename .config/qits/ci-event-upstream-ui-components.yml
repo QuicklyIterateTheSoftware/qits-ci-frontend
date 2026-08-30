@@ -69,5 +69,5 @@ steps:
       fi
       git -c user.name="qits release train" -c user.email="release-train@qits.local" \
           commit -q -m "bump(@qits/ui-components@$version): follow the $upstream release"
-      git push --force "$QITS_CI_REPOSITORY_URL" "HEAD:refs/heads/maintenance/$upstream"
+      git push --force "$QITS_CI_REPOSITORY_URL" "HEAD:refs/heads/maintenance/ui-components"
 
