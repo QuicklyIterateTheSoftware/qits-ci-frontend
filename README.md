@@ -1,4 +1,4 @@
-# QitsSpaCi
+# qits-ci-frontend
 
 The CI explorer: the read-only view of what qits-ci has run, served by qits-ci itself at the root of
 its own host (`ci.<env>.<domain>/`) through Quinoa. Two screens, no forms, and one write.
