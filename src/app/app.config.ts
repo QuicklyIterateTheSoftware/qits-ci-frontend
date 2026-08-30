@@ -26,7 +26,7 @@ import { routes } from './app.routes';
  *   repositories of whatever project is open, from `GET /projects/api/projects` and one listing per
  *   project. Both feed the sidebar's tree.
  * - `provideQitsScope('repository')` says how deep this application's own addresses go: its pages
- *   are about one repository, so it serves `/<slug>/<category>/<repo>/…` beside its own bare paths
+ *   are about one repository, so it serves `/<slug>/<group>/<repo>/…` beside its own bare paths
  *   and the picker navigates here rather than leaving for qits-projects.
  */
 export const appConfig: ApplicationConfig = {

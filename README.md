@@ -11,9 +11,10 @@ its own host (`ci.<env>.<domain>/`) through Quinoa. Two screens, no forms, and o
   live step and a cancel button. It polls every three seconds while the run is running, stops on the
   first terminal answer, and pauses while the tab is hidden.
 
-Both screens answer at a **scoped** address too — `/<projectSlug>/<category>/<repoName>/` and
-`/<projectSlug>/<category>/<repoName>/runs/<runId>` — which is the platform-wide URL grammar every
-SPA here shares. The pages read that scope from `@qits/ui-components` rather than from route
+Both screens answer at a **scoped** address too — `/<projectSlug>/<group>/<repoName>/` and
+`/<projectSlug>/<group>/<repoName>/runs/<runId>` — which is the platform-wide URL grammar every
+SPA here shares. The middle segment is the repository's component where the platform gives it one
+and its archetype category where it does not; both spellings resolve to the same page. The pages read that scope from `@qits/ui-components` rather than from route
 parameters, so one component serves both spellings: scoped, the tree draws the named repository open
 inside its project and leaves out everything else, including the unattributed bucket.
 
