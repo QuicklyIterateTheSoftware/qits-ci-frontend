@@ -1,7 +1,6 @@
 event: SoftwareRelease
 when:
-  - repository: { exact: qits-spa-ui-components }
-    packageType: { exact: npm }
+  - packageType: { exact: npm }
     packageName: { exact: "@qits/ui-components" }
 steps:
   - image: qits/build-images/node-base:latest
