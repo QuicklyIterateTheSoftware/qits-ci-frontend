@@ -1,15 +1,55 @@
-# The pipeline qits-ci runs on every push to a tracked branch of this repository.
+# THE ONE PIPELINE THIS REPOSITORY HAS, and it runs for a release request and nothing else.
+#
+# There is no push pipeline any more, and `ci-post-receive.yml` is what this file replaces.
+# qits-projects keeps a backing branch `release/<id>` per open release request — an octopus merge of
+# that request's sources, refolded whenever the set changes — and publishes `ReleaseRequestChanged`
+# on every successful re-fold. The merge primitive that writes that branch fires no `post-receive`
+# and so publishes no `SCMPublishCommit`: without this file the fold exists and NOTHING BUILDS IT.
+# A fold the git host answered `unchanged`, and one that conflicted, publish nothing — so every
+# arrival here is a new sha worth a build.
+#
+# DECIDED AT MAIN, BUILT AT THE FOLD. This file is discovered, parsed and selected at `main`'s head,
+# always; only the run's branch and sha come from the payload, which is why `checkout:` names them
+# as a pair — a sha with no branch whose history holds it is not something a step container can
+# fetch. A release request therefore cannot alter the CI that gates it by folding in a commit that
+# edits this file. Inside the step, $QITS_CI_BRANCH is `release/<id>` and $QITS_CI_SHA is the merged
+# sha; the fold is already checked out, so nothing below fetches or switches refs.
+#
+# ONE STEP, AND IT IS THE GATING HALF. The verdict returns on the ordinary
+# `BuildSuccessful`/`BuildFailed` with `commitSha` = the merged sha, which is what qits-projects'
+# `BuildStatusListener` matches on together with `repoId`. There is no trailing `gating: false` half
+# because this repository has nothing to publish from a fold — see below.
+#
+# NOTHING IS PUBLISHED FROM HERE, AND NOTHING EVER WAS. This bundle is not an npm package and not a
+# tarball CI uploads: the consuming service carries this repository as a Quinoa submodule and builds
+# the bundle into its own image. A release of this repository is a TAG, and what acts on that tag is
+# the consuming service's `ci-event-upstream-frontend.yml`, which moves the gitlink and pushes a
+# maintenance branch. So retiring the push pipeline drops no publication: there is none, and this
+# repository needs no `ci-event-release.yml`.
 #
 # One ordinary sandboxed step, and no image: this repository does not ship a container. The app is
 # packaged and served by qits-ci, which carries this repo as a git submodule at
 # service/src/main/webui — Quinoa's ui-dir — and builds it into the service image at /ci/, so this
-# pipeline's job is to keep main green (install, lint, test, build), and qits-ci's own pipeline is
-# where the bundle becomes deployable.
+# pipeline's job is to gate a release request's fold green (install, lint, test, build), and qits-
+# ci's own pipeline is where the bundle becomes deployable.
 #
 # The recipe below is qits-spa-home's, and that repo is where it is maintained; the two should keep
 # matching. Unlike the other service SPAs there is no divergence to note: this repository carries an
 # eslint.config.js and a `lint` script, so the `npm run lint` line the sibling recipes document as
 # missing is present here.
+
+event: ReleaseRequestChanged
+
+when:
+  # repoName, not repoId: the git host's storage coordinate is an opaque UUID since
+  # the identity cutover, so a name match on repoId is not dependable. The event
+  # echoes the public name; a rename updates this line in the same campaign.
+  - repoName: { exact: qits-ci-frontend }
+
+checkout:
+  branch: backingBranch
+  sha: mergedSha
+
 steps:
   - image: qits/build-images/node-base:latest
     timeout-seconds: 1800
