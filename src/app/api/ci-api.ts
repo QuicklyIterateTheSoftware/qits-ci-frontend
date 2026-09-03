@@ -11,7 +11,7 @@ import type {
 } from './dto';
 
 /**
- * Everything this app reads from qits-ci, and the one thing it writes.
+ * Everything this app reads from qits-ci, and the two things it writes.
  *
  * `HttpClient` on the fetch backend rather than bare `fetch()`, for two reasons that both cash out
  * elsewhere: `HttpTestingController` is the only request-mocking story Angular ships and the specs
@@ -129,4 +129,27 @@ export class CiApi {
       ),
     );
   }
+
+  /**
+   * Run a finished run's pipeline again, at the same commit, and answer the **new** run's id.
+   *
+   * 202, like the cancel, and for the same kind of reason: what comes back is a run that has been
+   * accepted and queued, not one that has produced anything. The id is the point of the response —
+   * the caller navigates to it and follows it like any other run. A run that has not finished
+   * answers 409, which is the same race the cancel button tolerates seen from the other side.
+   */
+  async retry(runId: string): Promise<string> {
+    const response = await firstValueFrom(
+      this.http.post<RetryRunResponse>(
+        `${this.base}/ci/api/runs/${encodeURIComponent(runId)}/retry`,
+        null,
+      ),
+    );
+    return response.runId;
+  }
+}
+
+/** What a retry answers: the id of the run it queued. */
+interface RetryRunResponse {
+  readonly runId: string;
 }
