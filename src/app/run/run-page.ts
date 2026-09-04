@@ -168,6 +168,40 @@ export class RunPage {
   protected readonly cancelled = computed(() => this.value()?.status === 'CANCELLED');
 
   /**
+   * What the stop *was*, in a sentence — because the three cancellations lead to three different
+   * next actions and one wording would be wrong for two of them.
+   *
+   * `DEDUPED` is the one this exists for. A superseded run never started: a newer push, a newer tag
+   * or a newer fold of the same release request took its queue slot, and the run that replaced it is
+   * the one carrying the answer. Telling that reader to "re-run it" would be telling them to redo
+   * work the platform deliberately collapsed — which is the whole reason a superseded row must not
+   * read like a failure either.
+   *
+   * A reason this build has not been taught falls back to the plain stopped wording rather than
+   * naming a token: the sentence is for a person, and the raw reason is printed verbatim in the
+   * facts below anyway.
+   */
+  protected readonly cancelledNote = computed<string>(() => {
+    switch (this.value()?.cancellationReason) {
+      case 'DEDUPED':
+        return (
+          'This run was superseded before it started — a newer run of the same pipeline took its' +
+          ' place. It published no verdict, and nothing is missing: read the newer run instead.'
+        );
+      case 'RELEASE_REQUEST_CANCELLED':
+        return (
+          'The release request this run served was withdrawn, so nobody is waiting for the answer.' +
+          ' It published no verdict, and nothing is gated on it.'
+        );
+      default:
+        return (
+          'This run was stopped. It published no verdict, so nothing is gated on it — re-run it if' +
+          ' the answer is still wanted.'
+        );
+    }
+  });
+
+  /**
    * Whether asking the same question again is offered.
    *
    * Terminal only — the server answers 409 for anything still going, and a button that is always

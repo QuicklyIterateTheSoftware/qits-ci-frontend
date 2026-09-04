@@ -103,6 +103,22 @@ interface RunGroup {
                           }
                         </p>
                       }
+                      <!-- Why a cancelled row says WHY, here and not only on the run page: this
+                           list is where a superseded run is mistaken for a broken build. The badge
+                           says CANCELLED and stops there, and "cancelled" alone still reads as
+                           something a person did — while a DEDUPED row is a queue slot the platform
+                           took back, with the run that replaced it one click away. -->
+                      @if (run.cancellationReason) {
+                        <p class="cancelled">
+                          ↳ {{ cancellationWord(run) }}
+                          @if (run.supersededByRunId) {
+                            ·
+                            <a [routerLink]="[...home(), 'runs', run.supersededByRunId]">
+                              newer run
+                            </a>
+                          }
+                        </p>
+                      }
                     </li>
                   }
                 </ul>
@@ -161,7 +177,8 @@ interface RunGroup {
     .duration {
       margin-left: auto;
     }
-    .provenance {
+    .provenance,
+    .cancelled {
       margin: 0 0 0.25rem 2.6rem;
       color: #6b7280;
       font-size: 0.85rem;
@@ -222,6 +239,28 @@ export class RepoRuns {
       next.add(type);
     }
     this.closed.set(next);
+  }
+
+  /**
+   * A cancelled run's reason as a phrase, in one line of the list.
+   *
+   * The three reasons qits-ci records are three different statements and the list has room for the
+   * difference: `DEDUPED` is the platform collapsing a queue (the row answered nothing and nothing
+   * is missing), `RELEASE_REQUEST_CANCELLED` is the work going away, `USER_CANCELLED` is a person.
+   * A reason this build has not been taught is printed verbatim rather than guessed at — the token
+   * is qits-ci's word and showing it is more honest than inventing a sentence for it.
+   */
+  protected cancellationWord(run: CiRunDto): string {
+    switch (run.cancellationReason) {
+      case 'DEDUPED':
+        return 'superseded — a newer run took this one’s place';
+      case 'RELEASE_REQUEST_CANCELLED':
+        return 'cancelled — the release request was withdrawn';
+      case 'USER_CANCELLED':
+        return 'cancelled by a person';
+      default:
+        return `cancelled — ${run.cancellationReason}`;
+    }
   }
 
   /** `12 runs`, and when the answer came back full, that these are only the newest. */

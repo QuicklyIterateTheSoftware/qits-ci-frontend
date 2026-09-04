@@ -351,6 +351,56 @@ describe('TreePage', () => {
     http.verify();
   });
 
+  /**
+   * The false-alarm case, and the reason the status vocabulary changed under this list.
+   *
+   * A run superseded by a newer fold of the same release request used to settle `FAILED` with
+   * `cancellationReason: DEDUPED`, so this list drew it in `danger` beside builds that really broke
+   * and every re-fold read as a regression. It settles `CANCELLED` now, and the row says which
+   * cancellation it was — because "cancelled" on its own still reads as something a person did,
+   * while a superseded run is a queue slot the platform took back and the run that replaced it is
+   * one click away.
+   */
+  it('draws a superseded run as cancelled, says it was superseded, and links what replaced it', async () => {
+    await open();
+    await flushRoots([], ['qits-ci']);
+
+    await click('qits-ci');
+    expectRuns('qits-ci').flush({
+      runs: [
+        run('r-newer'),
+        run('r-older', {
+          status: 'CANCELLED',
+          cancellationReason: 'DEDUPED',
+          supersededByRunId: 'r-newer',
+        }),
+      ],
+    });
+    await settle();
+
+    expect(text()).toContain('superseded');
+    expect(text()).toContain('newer run');
+    // The word the badge shows is the run's own status, and it must not be the red one.
+    expect(text()).toContain('CANCELLED');
+    expect(text()).not.toContain('FAILED');
+    expect(page().querySelector('a[href$="/runs/r-newer"]')).not.toBeNull();
+  });
+
+  /** A person's cancellation is a different sentence, and the raw reason is never invented over. */
+  it('tells a person’s cancellation apart from a supersede in the same list', async () => {
+    await open();
+    await flushRoots([], ['qits-ci']);
+
+    await click('qits-ci');
+    expectRuns('qits-ci').flush({
+      runs: [run('r1', { status: 'CANCELLED', cancellationReason: 'USER_CANCELLED' })],
+    });
+    await settle();
+
+    expect(text()).toContain('cancelled by a person');
+    expect(text()).not.toContain('superseded');
+  });
+
   it('offers “show all” only when the answer came back full, and drops the limit for it', async () => {
     await open();
     await flushRoots([], ['qits-ci']);

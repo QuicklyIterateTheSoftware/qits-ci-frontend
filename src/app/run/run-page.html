@@ -35,11 +35,10 @@
   @if (cancelled()) {
     <!-- Said in words rather than left to the badge: a stopped run is neither green nor red, and
          qits-ci publishes no build event for it — so nothing downstream is waiting on it and no
-         release is held by it. "Red" and "somebody stopped it" lead to opposite next actions. -->
-    <p class="note note-cancelled" role="status">
-      This run was stopped. It published no verdict, so nothing is gated on it — re-run it if the
-      answer is still wanted.
-    </p>
+         release is held by it. "Red" and "somebody stopped it" lead to opposite next actions, and
+         so do "somebody stopped it" and "a newer run replaced it" — hence the reason decides the
+         sentence rather than the status alone. -->
+    <p class="note note-cancelled" role="status">{{ cancelledNote() }}</p>
   }
 
   @if (retryNote()) {

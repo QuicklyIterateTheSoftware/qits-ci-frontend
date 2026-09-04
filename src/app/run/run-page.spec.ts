@@ -206,11 +206,16 @@ describe('RunPage', () => {
     http.verify();
   });
 
+  /**
+   * A superseded run settles `CANCELLED`, not `FAILED` — it answered no question about the commit —
+   * and the note says which cancellation it was: "re-run it if the answer is still wanted" is the
+   * wrong instruction for a run whose answer already exists under a newer id.
+   */
   it('shows why a run was cancelled and links a deduped run to its replacement', async () => {
     await open();
     expectRun().flush(
       run({
-        status: 'FAILED',
+        status: 'CANCELLED',
         cancellationReason: 'DEDUPED',
         supersededByRunId: 'newer-run',
       }),
@@ -219,6 +224,9 @@ describe('RunPage', () => {
     await flushAttribution();
 
     expect(text()).toContain('DEDUPED');
+    expect(text()).toContain('superseded before it started');
+    expect(text()).toContain('read the newer run instead');
+    expect(text()).not.toContain('re-run it if the answer is still wanted');
     const replacement = Array.from(page().querySelectorAll('a')).find((link) =>
       link.textContent?.includes('newer run'),
     );
