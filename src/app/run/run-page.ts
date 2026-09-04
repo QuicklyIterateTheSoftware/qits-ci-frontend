@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink, convertToParamMap } from '@angular/router';
 import { QITS_SCOPE, QitsButton, scopeCommands } from '@qits/ui-components';
 import { RepositoryAttribution, type Attribution } from '../api/attribution';
 import { CiApi } from '../api/ci-api';
@@ -52,6 +52,7 @@ export class RunPage {
   private readonly api = inject(CiApi);
   private readonly attribution = inject(RepositoryAttribution);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
 
   /**
@@ -118,6 +119,10 @@ export class RunPage {
 
   protected readonly confirming = signal(false);
   protected readonly cancelling = signal(false);
+  protected readonly retrying = signal(false);
+
+  /** The outcome of a retry that did not simply work: a 409, or a failure worth reporting. */
+  protected readonly retryNote = signal('');
 
   /**
    * The optimistic banner: the cancel was accepted and the run has not stopped yet.
@@ -151,6 +156,29 @@ export class RunPage {
   });
 
   protected readonly steps = computed<readonly CiStepDto[]>(() => this.value()?.steps ?? []);
+
+  /**
+   * A stopped run, which is a category of its own on this page.
+   *
+   * `CANCELLED` is neither green nor red: qits-ci publishes **no** build event for it, so nothing
+   * downstream is gated on it and no release is held by it. That is worth saying in words rather
+   * than leaving to a badge, because "the run is red" and "somebody stopped the run" lead a reader
+   * to opposite next actions.
+   */
+  protected readonly cancelled = computed(() => this.value()?.status === 'CANCELLED');
+
+  /**
+   * Whether asking the same question again is offered.
+   *
+   * Terminal only — the server answers 409 for anything still going, and a button that is always
+   * refused is worse than no button. It is offered on every terminal status including `CANCELLED`
+   * and `SUCCESS`: a stopped run is exactly the thing somebody wants to restart, and a green run is
+   * legitimately re-run when the platform under it changed.
+   */
+  protected readonly retryable = computed(() => {
+    const run = this.value();
+    return run !== null && isTerminal(run.status);
+  });
 
   /**
    * The project that claims this run's repository, once the lookup has answered and named one.
@@ -213,6 +241,7 @@ export class RunPage {
     this.liveSince.set(0);
     this.pollProblem.set('');
     this.cancelNote.set('');
+    this.retryNote.set('');
     this.cancelRequested.set(false);
     this.confirming.set(false);
     this.openSteps.set(new Set());
@@ -402,6 +431,40 @@ export class RunPage {
       this.cancelling.set(false);
       this.confirming.set(false);
       await this.poll();
+    }
+  }
+
+  /**
+   * The page's second write: ask the same question again.
+   *
+   * Unconfirmed, deliberately — unlike the cancel, which destroys work in flight, a retry only adds
+   * a run, and a confirmation on a harmless action trains people to click through the one that is
+   * not. On success the browser follows the new run, which is the only honest place to be: this
+   * page is addressed by run id, so staying put would leave the reader watching the run they just
+   * asked to have re-done.
+   *
+   * A 409 means the run stopped being terminal between the render and the click — something
+   * re-enqueued it — so it is reported rather than shrugged at, because unlike the cancel's 409
+   * nothing the reader wanted has happened.
+   */
+  protected async retryRun(): Promise<void> {
+    const run = this.value();
+    if (!run) {
+      return;
+    }
+    this.retrying.set(true);
+    this.retryNote.set('');
+    try {
+      const runId = await this.api.retry(run.id);
+      await this.router.navigate([...this.home(), 'runs', runId]);
+    } catch (error) {
+      this.retryNote.set(
+        statusOf(error) === 409
+          ? 'This run is not finished, so there is nothing to re-run yet.'
+          : `Could not re-run this pipeline — ${describeError(error)}.`,
+      );
+    } finally {
+      this.retrying.set(false);
     }
   }
 }

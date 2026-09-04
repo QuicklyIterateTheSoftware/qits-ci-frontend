@@ -138,6 +138,22 @@ export interface CiRunDto {
   readonly triggerType: CiTriggerType;
   readonly triggerEventId: string | null;
   readonly triggerEventName: string | null;
+  /**
+   * The release request this run's pipeline gates, null for every run that gates none.
+   *
+   * A run triggered by a `ReleaseRequestChanged` builds the request's backing branch, whose
+   * `commitSha` is a fold nobody pushed and is rewritten by the next re-fold. So this is the handle
+   * that says *which piece of work* the run belongs to, where the sha only says which fold.
+   */
+  readonly releaseRequestId: string | null;
+  /**
+   * The run this one was fired to re-do, null on everything a trigger produced.
+   *
+   * Present means "somebody asked this question again". Its `triggerEventId` is then a synthetic
+   * local token rather than a foreign event id, so nothing should be matched against an event log
+   * by it — read this field instead, and link back to the run it names.
+   */
+  readonly retryOfRunId: string | null;
   readonly configPath: string | null;
   readonly steps: readonly CiStepDto[] | null;
   readonly live: CiLiveStepDto | null;

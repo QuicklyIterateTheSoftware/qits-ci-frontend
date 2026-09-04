@@ -102,6 +102,15 @@ describe('CiApi', () => {
     await expect(cancelled).resolves.toBeUndefined();
   });
 
+  it('retries with a POST and answers the new run id', async () => {
+    // The id is the whole point of the response: the caller navigates to the run it queued.
+    const retried = api.retry('run-1');
+    const request = http.expectOne('/ci/api/runs/run-1/retry');
+    expect(request.request.method).toBe('POST');
+    request.flush({ runId: 'run-2' }, { status: 202, statusText: 'Accepted' });
+    await expect(retried).resolves.toBe('run-2');
+  });
+
   it('rejects with the HttpErrorResponse, so callers can read the status', async () => {
     const run = api.run('nope');
     http

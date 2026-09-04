@@ -1,15 +1,31 @@
 # qits-ci-frontend
 
 The CI explorer: the read-only view of what qits-ci has run, served by qits-ci itself at the root of
-its own host (`ci.<env>.<domain>/`) through Quinoa. Two screens, no forms, and one write.
+its own host (`ci.<env>.<domain>/`) through Quinoa. Two screens, no forms, and two writes.
 
 - **`/`** — the run tree. Projects (from qits-projects) → repositories → trigger-type groups →
   runs. Every level loads on expansion and caches; the page itself makes two requests, both flat
   lists. Expansion is carried in the query parameters (`/?project=…&repo=…`), so it is
   bookmarkable and the back button collapses.
 - **`/runs/<runId>`** — one run: provenance, steps, step output, and while it is `RUNNING` the
-  live step and a cancel button. It polls every three seconds while the run is running, stops on the
+  live step. It polls every three seconds while the run is running, stops on the
   first terminal answer, and pauses while the tab is hidden.
+
+  Its two buttons are complements and never both offered. **Cancel run** appears while the run is
+  `QUEUED` or `RUNNING` — queued is the case it is most worth having, since the run has not started
+  and stopping it costs nothing — and is guarded by a confirmation, because it destroys work in
+  flight. **Run again** appears on every terminal status and sends `POST
+  /ci/api/runs/<runId>/retry`, which queues a new run of the same pipeline at the same commit and
+  answers its id; the page then follows it. That one is unconfirmed on purpose: it only adds a run,
+  and a confirmation on a harmless action trains people to click through the one that is not. A 409
+  from either is the run having moved between the render and the click — the cancel shrugs at it,
+  the retry reports it, since nothing the reader asked for happened.
+
+  A `CANCELLED` run says so in words beside its badge: qits-ci publishes **no** build event for a
+  stopped run, so nothing downstream is gated on it and no release is held by it. "The run is red"
+  and "somebody stopped the run" lead to opposite next actions, which is why the badge alone is not
+  enough. A run that gates a release request shows its `releaseRequestId`, and a re-run links back
+  to the run it re-fires.
 
 Both screens answer at a **scoped** address too — `/<projectSlug>/<group>/<repoName>/` and
 `/<projectSlug>/<group>/<repoName>/runs/<runId>` — which is the platform-wide URL grammar every

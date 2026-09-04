@@ -17,6 +17,12 @@ import { QitsBadge, type QitsBadgeTone } from '@qits/ui-components';
  * news, while `RUNNING` keeps `info` for the one state where something is actually moving. It is
  * also the tone the platform's design register already gives a queued *deployment*, and a status
  * word that changed colour between the two services would be a distinction without a difference.
+ *
+ * `CANCELLED` is `neutral` for a sharper version of the same reason, and it is the one entry here
+ * worth defending: a stopped run is <b>not a verdict</b>. qits-ci publishes no build event for it at
+ * all, so nothing downstream is gated on it and painting it `danger` beside a genuine `FAILED` would
+ * claim a red this platform never recorded. What the badge cannot carry — that no verdict was
+ * published, so re-running is the next move — the run page says in words beside it.
  */
 const TONES: Readonly<Record<string, QitsBadgeTone>> = {
   QUEUED: 'neutral',

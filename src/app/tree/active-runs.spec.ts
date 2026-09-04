@@ -44,6 +44,8 @@ describe('ActiveRuns', () => {
     triggerType: 'POST_RECEIVE',
     triggerEventId: null,
     triggerEventName: null,
+    releaseRequestId: null,
+    retryOfRunId: null,
     configPath: '.config/qits/ci-post-receive.yml',
     steps: null,
     live: null,

@@ -59,6 +59,17 @@
   background: #f3f4f6;
 }
 
+/*
+ * A stopped run reads as its own thing rather than as a quieter failure. The badge is `neutral`
+ * because CANCELLED is not a red verdict, and this note is what carries the meaning the badge
+ * cannot: no build event was published, so nothing downstream is waiting on it.
+ */
+.note-cancelled {
+  color: #3730a3;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
 .facts {
   display: grid;
   grid-template-columns: max-content 1fr;

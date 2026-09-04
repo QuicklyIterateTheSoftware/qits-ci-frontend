@@ -54,6 +54,8 @@ describe('RunPage', () => {
     triggerType: 'POST_RECEIVE',
     triggerEventId: null,
     triggerEventName: null,
+    releaseRequestId: null,
+    retryOfRunId: null,
     configPath: '.config/qits/ci-post-receive.yml',
     steps: [step(0)],
     live: null,
@@ -94,6 +96,10 @@ describe('RunPage', () => {
 
   function buttons(): HTMLButtonElement[] {
     return Array.from(page().querySelectorAll('button'));
+  }
+
+  function hasButton(label: string): boolean {
+    return buttons().some((button) => (button.textContent ?? '').includes(label));
   }
 
   async function click(label: string): Promise<void> {
@@ -305,11 +311,12 @@ describe('RunPage', () => {
     await flushAttribution();
 
     expect(text()).toContain('QUEUED');
-    // Nothing has started, so nothing invents a step — and no cancel, which is a running run's.
+    // Nothing has started, so nothing invents a step — and no re-run either, which is a finished
+    // run's. The cancel IS offered: a queued run is the case it is most worth having, since
+    // stopping it costs nothing and saves the whole pipeline.
     expect(text()).not.toContain('This run recorded no steps.');
-    expect(buttons().some((button) => (button.textContent ?? '').includes('Cancel run'))).toBe(
-      false,
-    );
+    expect(hasButton('Cancel run')).toBe(true);
+    expect(hasButton('Run again')).toBe(false);
 
     await tick(POLL_INTERVAL_MS);
     expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
@@ -370,14 +377,114 @@ describe('RunPage', () => {
     expect(text()).not.toContain('last read failed');
   });
 
-  it('offers cancel on a RUNNING run only, and never on a terminal one', async () => {
+  it('offers neither write on a terminal run — nothing to stop, and the re-run is its own button', async () => {
+    // A terminal run has nothing to cancel, and the server would answer 409: a button that is
+    // always refused is worse than no button.
     await open();
     expectRun().flush(run());
     await settle();
     await flushAttribution();
-    expect(buttons().some((button) => (button.textContent ?? '').includes('Cancel run'))).toBe(
-      false,
+    expect(hasButton('Cancel run')).toBe(false);
+  });
+
+  it('offers no re-run while a run is still going', async () => {
+    // The mirror image of the cancel's rule, and the server enforces the same line with a 409: two
+    // runs racing for one verdict is not what anybody asked for.
+    await open();
+    expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
+    await settle();
+    await flushAttribution();
+    expect(hasButton('Run again')).toBe(false);
+  });
+
+  it('offers a re-run on a terminal run, and follows the run it creates', async () => {
+    await open();
+    expectRun().flush(run({ status: 'FAILED' }));
+    await settle();
+    await flushAttribution();
+    expect(hasButton('Run again')).toBe(true);
+
+    await click('Run again');
+    const retry = http.expectOne('/ci/api/runs/da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61/retry');
+    expect(retry.request.method).toBe('POST');
+    retry.flush(
+      { runId: 'e77f5b12-9c40-4a61-8d2f-71b3c0a9e458' },
+      { status: 202, statusText: 'Accepted' },
     );
+    await settle();
+
+    // The page is addressed by run id, so staying put would leave the reader watching the run they
+    // just asked to have re-done. The new run is read, which is the navigation having happened.
+    expectRun('e77f5b12-9c40-4a61-8d2f-71b3c0a9e458').flush(
+      run({
+        id: 'e77f5b12-9c40-4a61-8d2f-71b3c0a9e458',
+        status: 'QUEUED',
+        startedAt: null,
+        finishedAt: null,
+        steps: [],
+      }),
+    );
+    await settle();
+    expect(text()).toContain('QUEUED');
+  });
+
+  it('reports a refused re-run instead of navigating', async () => {
+    // Unlike the cancel's 409, this one is not a race the reader wanted the outcome of: nothing was
+    // re-run, so saying nothing would leave a dead button.
+    await open();
+    expectRun().flush(run({ status: 'FAILED' }));
+    await settle();
+    await flushAttribution();
+
+    await click('Run again');
+    http
+      .expectOne('/ci/api/runs/da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61/retry')
+      .flush({ message: 'not finished' }, { status: 409, statusText: 'Conflict' });
+    await settle();
+
+    expect(text()).toContain('nothing to re-run yet');
+    http.verify();
+  });
+
+  /**
+   * A stopped run is neither green nor red. qits-ci publishes no build event for a `CANCELLED` run
+   * at all, so nothing downstream is gated on it — and "the run is red" and "somebody stopped the
+   * run" lead a reader to opposite next actions, which is why this is words rather than a badge
+   * colour.
+   */
+  it('says what CANCELLED means, and offers the re-run beside it', async () => {
+    await open();
+    expectRun().flush(run({ status: 'CANCELLED', cancellationReason: 'USER_CANCELLED' }));
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('CANCELLED');
+    expect(text()).toContain('published no verdict');
+    expect(page().querySelector('.note-cancelled')).toBeTruthy();
+    expect(hasButton('Run again')).toBe(true);
+    expect(hasButton('Cancel run')).toBe(false);
+  });
+
+  it('names the release request a run gates and links a re-run back to its original', async () => {
+    await open();
+    expectRun().flush(
+      run({
+        status: 'FAILED',
+        branch: 'release/rr-42',
+        releaseRequestId: 'rr-42',
+        retryOfRunId: '11111111-2222-3333-4444-555555555555',
+      }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('Release request');
+    expect(text()).toContain('rr-42');
+    expect(text()).toContain('Re-run of');
+    const back = Array.from(page().querySelectorAll('.facts a')).find((anchor) =>
+      (anchor.getAttribute('href') ?? '').includes('11111111'),
+    );
+    expect(back?.getAttribute('href')).toBe('/runs/11111111-2222-3333-4444-555555555555');
   });
 
   it('guards cancel with a confirmation, and reconciles from the next read', async () => {

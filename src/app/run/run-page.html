@@ -19,11 +19,32 @@
     </h1>
     <div class="head-right">
       <app-status-badge [status]="run.status" />
-      @if (!confirming() && run.status === 'RUNNING') {
+      @if (!confirming() && running()) {
+        <!-- A queued run is cancellable too, and it is the case worth having the button for: it has
+             not started, so stopping it costs nothing and saves the whole pipeline. -->
         <qits-button variant="secondary" size="sm" (pressed)="askCancel()">Cancel run</qits-button>
+      }
+      @if (retryable()) {
+        <qits-button variant="secondary" size="sm" [busy]="retrying()" (pressed)="retryRun()">
+          Run again
+        </qits-button>
       }
     </div>
   </header>
+
+  @if (cancelled()) {
+    <!-- Said in words rather than left to the badge: a stopped run is neither green nor red, and
+         qits-ci publishes no build event for it — so nothing downstream is waiting on it and no
+         release is held by it. "Red" and "somebody stopped it" lead to opposite next actions. -->
+    <p class="note note-cancelled" role="status">
+      This run was stopped. It published no verdict, so nothing is gated on it — re-run it if the
+      answer is still wanted.
+    </p>
+  }
+
+  @if (retryNote()) {
+    <p class="note" role="status">{{ retryNote() }}</p>
+  }
 
   @if (confirming()) {
     <p class="confirm" role="alert">
@@ -64,6 +85,22 @@
     <dd>
       <code>{{ run.configPath || none }}</code>
     </dd>
+
+    @if (run.releaseRequestId) {
+      <dt>Release request</dt>
+      <dd>
+        <code>{{ run.releaseRequestId }}</code>
+      </dd>
+    }
+
+    @if (run.retryOfRunId) {
+      <dt>Re-run of</dt>
+      <dd>
+        <a [routerLink]="[...home(), 'runs', run.retryOfRunId]">
+          <code>{{ run.retryOfRunId }}</code>
+        </a>
+      </dd>
+    }
 
     <dt>Queued</dt>
     <dd>{{ formatInstant(run.createdAt) }}</dd>
