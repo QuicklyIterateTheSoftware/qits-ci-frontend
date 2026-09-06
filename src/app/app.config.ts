@@ -1,13 +1,19 @@
 import { provideBrowserGlobalErrorListeners, type ApplicationConfig } from '@angular/core';
 import { provideHttpClient, withFetch } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
-import { provideQitsNavigation, provideQitsProjects, provideQitsScope } from '@qits/ui-components';
+import {
+  provideQitsBuilds,
+  provideQitsNavigation,
+  provideQitsProjects,
+  provideQitsScope,
+} from '@qits/ui-components';
 
 import { routes } from './app.routes';
 
 /**
- * Six providers, in the order spa-home documents. The third arrived with this application — it was
- * the platform's first SPA to make a request — and the last two now make requests of their own.
+ * Seven providers, in the order spa-home documents. The third arrived with this application — it
+ * was the platform's first SPA to make a request — and the last three now make requests of their
+ * own.
  *
  * - `provideBrowserGlobalErrorListeners` funnels genuinely-global errors and unhandled rejections
  *   into Angular's `ErrorHandler`.
@@ -28,6 +34,12 @@ import { routes } from './app.routes';
  * - `provideQitsScope('repository')` says how deep this application's own addresses go: its pages
  *   are about one repository, so it serves `/<slug>/<group>/<repo>/…` beside its own bare paths
  *   and the picker navigates here rather than leaving for qits-projects.
+ * - `provideQitsBuilds` puts the pending-builds bolt beside that picker: a popover of the active
+ *   runs, from `GET /ci/api/runs/active` — this application's own read, reached same-origin like
+ *   every other call here. It is the chrome's version of the tree page's right rail, and it is
+ *   provided here for the reason it is provided anywhere: the bolt means the same thing in every
+ *   SPA, and an operator who has navigated away from the tree has not stopped caring what is
+ *   building. Nothing is asked while the panel is closed; it polls only for as long as one is open.
  */
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -37,5 +49,6 @@ export const appConfig: ApplicationConfig = {
     provideQitsNavigation(),
     provideQitsProjects(),
     provideQitsScope('repository'),
+    provideQitsBuilds(),
   ],
 };
