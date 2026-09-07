@@ -63,6 +63,14 @@
     <p class="note" role="status">{{ cancelNote() }}</p>
   }
 
+  @if (showProgress()) {
+    <!-- High on the page and above the provenance, because on a run that is still going it is the
+         thing the reader came for: how far through its usual shape this one is. It is a p95 of the
+         same steps in the same pipeline, so it is a shape rather than a deadline — a run that
+         outlasts it holds full and changes tone, and nothing here calls that late. -->
+    <app-expected-progress class="run-progress" [run]="run" />
+  }
+
   <dl class="facts">
     <dt>Run</dt>
     <dd>
@@ -123,6 +131,13 @@
     <dt>Duration</dt>
     <dd>{{ runDuration(run) }}</dd>
 
+    @if (expectedTotal(); as expected) {
+      <!-- Beside the duration on a finished run too: "4m 12s" is a number, and it only becomes fast
+           or slow next to what this pipeline usually costs. -->
+      <dt>Expected</dt>
+      <dd>{{ expected }}</dd>
+    }
+
     <dt>Daemon</dt>
     <dd>{{ run.daemonVersion || none }}</dd>
 
@@ -170,7 +185,12 @@
             <code class="image">{{ step.image }}</code>
             <span class="exit">{{ step.exitCode === null ? none : 'exit ' + step.exitCode }}</span>
             <span class="when">{{ formatClock(step.startedAt) }}</span>
-            <span class="duration">{{ stepDuration(step) }}</span>
+            <span class="duration">
+              {{ stepDuration(step) }}
+              @if (expectedStep(step.stepIndex); as expected) {
+                <span class="expected">· expected {{ expected }}</span>
+              }
+            </span>
           </button>
           @if (isStepOpen(step.stepIndex)) {
             <pre class="output">{{ stripAnsi(step.output || '') }}</pre>
@@ -194,7 +214,12 @@
             <span class="index">{{ live.stepIndex }}</span>
             <app-status-badge status="RUNNING" />
             <span class="live-label">(step {{ live.stepIndex }} · live)</span>
-            <span class="duration">{{ liveElapsed() }}</span>
+            <span class="duration">
+              {{ liveElapsed() }}
+              @if (expectedStep(live.stepIndex); as expected) {
+                <span class="expected">/ {{ expected }} expected</span>
+              }
+            </span>
           </button>
           @if (liveOpen()) {
             <pre class="output output-live">{{ stripAnsi(live.output) }}</pre>

@@ -190,6 +190,64 @@ describe('ActiveRuns', () => {
     expect(text()).not.toContain('10m');
   });
 
+  /** Every bar the rail is currently drawing, as its progress percentage. */
+  function bars(): string[] {
+    return Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('[role="progressbar"]'),
+    ).map((track) => track.getAttribute('aria-valuenow') ?? '');
+  }
+
+  /**
+   * The rail is where a run is watched without opening it, so the shape it is expected to take
+   * belongs here more than anywhere: the row already says *what* is running, and the bar is the only
+   * thing on this screen that says how much of it is left.
+   */
+  it('draws the expected shape under a run that carries one', async () => {
+    mount();
+    flushActive([
+      run('r1', {
+        startedAt: new Date(Date.now() - 45_000).toISOString(),
+        expectedStepDurationsMillis: [10_000, 90_000],
+      }),
+    ]);
+    await settle();
+
+    expect(bars()).toEqual(['45']);
+    expect(text()).toContain('running for 45s');
+  });
+
+  /** A queued run has the shape and has not started, so the track is drawn and stays empty. */
+  it('draws an empty track for a queued run, and still says how long it has waited', async () => {
+    mount();
+    flushActive([run('r1', { status: 'QUEUED', expectedStepDurationsMillis: [10_000, 90_000] })]);
+    await settle();
+
+    expect(bars()).toEqual(['0']);
+    expect(text()).toContain('queued for 2m 07s');
+  });
+
+  /**
+   * The zero-regression case, and the one every run recorded before the field existed lands in: a
+   * run with no expectations is the row it always was, with no empty bar under it.
+   */
+  it('draws no bar at all for a run that carries no expectations', async () => {
+    mount();
+    flushActive([run('r1')], [done('f1', 1)]);
+    await settle();
+
+    expect(bars()).toEqual([]);
+    expect(text()).toContain('running for 2m 07s');
+  });
+
+  /** The stack is history: a finished run's own duration is the answer, not a prediction about it. */
+  it('draws no bar in the finished stack, even when the runs in it predicted one', async () => {
+    mount();
+    flushActive([], [done('f1', 1, { expectedStepDurationsMillis: [10_000, 90_000] })]);
+    await settle();
+
+    expect(bars()).toEqual([]);
+  });
+
   it('says nothing is building rather than drawing an empty box', async () => {
     mount();
     flushActive([]);

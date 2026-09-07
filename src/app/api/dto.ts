@@ -103,12 +103,18 @@ export interface CiStepDto {
 }
 
 /**
- * The step executing right now — two fields, and that is all it has. No image, no timestamps, no
- * status, because the relay it comes from holds none. A renderer must not invent them.
+ * The step executing right now. No image and no status, because the relay it comes from holds
+ * neither. A renderer must not invent them.
+ *
+ * `startedAt` is the one timestamp the relay does know, and it is optional: absent from a daemon
+ * older than the field, and from every run recorded before it existed. Where it is missing the
+ * client falls back to when it first *saw* this step, which is a measurement of its own watching
+ * rather than of the step — so where the server does say, the server wins.
  */
 export interface CiLiveStepDto {
   readonly stepIndex: number;
   readonly output: string;
+  readonly startedAt?: string | null;
 }
 
 /**
@@ -155,6 +161,21 @@ export interface CiRunDto {
    */
   readonly retryOfRunId: string | null;
   readonly configPath: string | null;
+  /**
+   * How long each planned step is expected to take, in millis and in pipeline order — the p95 of the
+   * same step's historical runtimes in the same pipeline.
+   *
+   * One entry per **planned** step, so the list describes the shape the run is expected to take
+   * rather than the steps it has finished; it is carried by the listings as well as by the single
+   * read, which is what lets the tree and the rail draw a bar without a per-run request. Every entry
+   * is positive.
+   *
+   * Optional and nullable, and both say the same thing: qits-ci has no history to predict from, or
+   * this build is talking to a server that does not answer it. A reader that has no expectations
+   * draws exactly what it drew before the field existed — a prediction is an extra, never a
+   * precondition.
+   */
+  readonly expectedStepDurationsMillis?: readonly number[] | null;
   readonly steps: readonly CiStepDto[] | null;
   readonly live: CiLiveStepDto | null;
 }

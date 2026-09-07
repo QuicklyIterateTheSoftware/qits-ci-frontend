@@ -590,6 +590,112 @@ describe('RunPage', () => {
     expect(text()).toContain('FAILED');
   });
 
+  // --- what the run was expected to cost ---
+
+  /** The page's text with its runs of whitespace collapsed, so a rendered phrase can be asserted. */
+  function phrase(): string {
+    return text().replace(/\s+/g, ' ');
+  }
+
+  function bar(): Element | null {
+    return page().querySelector('.run-progress [role="progressbar"]');
+  }
+
+  /**
+   * The comparison is the whole point of the fact, and it is worth having on a run that is *over*:
+   * "4m 12s" is a number, and it only becomes fast or slow beside what this pipeline usually costs.
+   */
+  it('shows the expected total beside the duration, on a finished run too', async () => {
+    await open();
+    expectRun().flush(run({ expectedStepDurationsMillis: [10_000, 90_000] }));
+    await settle();
+    await flushAttribution();
+
+    expect(phrase()).toContain('Duration4m 11s');
+    expect(phrase()).toContain('Expected1m 40s');
+    // Nothing to predict about a run that is over: the bar is for the ones still going.
+    expect(bar()).toBeNull();
+  });
+
+  it('shows each finished step’s actual time against the time it was expected to take', async () => {
+    await open();
+    expectRun().flush(run({ expectedStepDurationsMillis: [10_000, 90_000] }));
+    await settle();
+    await flushAttribution();
+
+    expect(phrase()).toContain('2m 41s · expected 10s');
+  });
+
+  /**
+   * The live row is the one place a prediction is being watched rather than compared, so it reads
+   * forwards: this is how long the current step has been going, and this is how long it usually takes.
+   */
+  it('ticks the live step against its own expected duration', async () => {
+    await open();
+    expectRun().flush(
+      run({
+        status: 'RUNNING',
+        finishedAt: null,
+        expectedStepDurationsMillis: [10_000, 38_000],
+        live: {
+          stepIndex: 1,
+          output: '#14 DONE 2.4s\n',
+          startedAt: new Date(Date.now() - 12_000).toISOString(),
+        },
+      }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(phrase()).toContain('12s / 38s expected');
+    // And the bar is drawn high on the page while the run is in flight.
+    expect(bar()).not.toBeNull();
+  });
+
+  /**
+   * The relay's own timestamp beats this client's first sighting of the step, and the gap between
+   * them is not small: a run opened mid-step was measured from *now* and read `0s` beside a step
+   * that had been going for minutes.
+   */
+  it('measures the live step from the relay’s timestamp rather than from when it first saw it', async () => {
+    await open();
+    expectRun().flush(
+      run({
+        status: 'RUNNING',
+        finishedAt: null,
+        live: {
+          stepIndex: 1,
+          output: 'still going\n',
+          startedAt: new Date(Date.now() - 132_000).toISOString(),
+        },
+      }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(phrase()).toContain('2m 12s');
+    expect(phrase()).not.toContain('/ ');
+  });
+
+  /**
+   * The zero-regression case. A run from before any of this existed — no expectations, and a live
+   * step with no timestamp — renders exactly what it always did: no bar, no Expected fact, and the
+   * live step measured from when this client first saw it.
+   */
+  it('renders a run without expectations exactly as before', async () => {
+    await open();
+    expectRun().flush(
+      run({ status: 'RUNNING', finishedAt: null, live: { stepIndex: 1, output: 'no clock\n' } }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(bar()).toBeNull();
+    expect(text()).not.toContain('Expected');
+    expect(text()).not.toContain('expected');
+    expect(phrase()).toContain('(step 1 · live) 0s');
+  });
+
   /** The repository link, which is the only anchor in the provenance block. */
   function repoLink(): HTMLAnchorElement | null {
     return page().querySelector('.facts a');

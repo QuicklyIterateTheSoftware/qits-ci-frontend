@@ -70,6 +70,11 @@
   border: 1px solid #c7d2fe;
 }
 
+.run-progress {
+  display: block;
+  margin: 0.9rem 0 0;
+}
+
 .facts {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -170,6 +175,12 @@
 
 .duration {
   margin-left: auto;
+}
+
+/* One shade back from the duration it sits beside: what a step took is the fact, and what it was
+   expected to take is the context that makes the fact mean something. */
+.expected {
+  color: #9ca3af;
 }
 
 .no-steps {

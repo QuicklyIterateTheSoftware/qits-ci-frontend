@@ -14,6 +14,7 @@ import { CiApi } from '../api/ci-api';
 import type { CiRunDto } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
+import { ExpectedProgress, hasExpectations } from '../ui/expected-progress';
 import { formatDayTime, formatDuration, runRepositoryLabel, shortSha } from '../ui/format';
 import { LOADING, describeError, failed, ready, type Loadable } from '../ui/loadable';
 import { StatusBadge } from '../ui/status-badge';
@@ -105,7 +106,7 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
 @Component({
   selector: 'app-active-runs',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, Empty, RouterLink, StatusBadge],
+  imports: [Async, Empty, ExpectedProgress, RouterLink, StatusBadge],
   template: `
     @if (finished().length > 0) {
       <h2>Finished runs</h2>
@@ -157,6 +158,12 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
                   <code class="ref">{{ run.branch }}&#64;{{ shortSha(run.commitSha) }}</code>
                   <span class="age">{{ age(run) }}</span>
                 </span>
+                <!-- The shape the run is expected to take, under the row that says which run it is.
+                     A queued one draws the empty track — it has a prediction and has not started —
+                     and the "queued for" above is still what says how long it has been waiting. -->
+                @if (predicts(run)) {
+                  <app-expected-progress [run]="run" />
+                }
               </a>
             </li>
           }
@@ -235,6 +242,9 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
     .age {
       margin-left: auto;
     }
+    .entry app-expected-progress {
+      margin-top: 0.3rem;
+    }
   `,
 })
 export class ActiveRuns {
@@ -274,6 +284,7 @@ export class ActiveRuns {
   protected readonly shortSha = shortSha;
   protected readonly repoLabel = runRepositoryLabel;
   protected readonly formatDayTime = formatDayTime;
+  protected readonly predicts = hasExpectations;
 
   protected readonly state = signal<Loadable<readonly CiRunDto[]>>(LOADING);
 

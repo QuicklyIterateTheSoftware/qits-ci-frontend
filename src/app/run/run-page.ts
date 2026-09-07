@@ -15,6 +15,7 @@ import { RepositoryAttribution, type Attribution } from '../api/attribution';
 import { CiApi } from '../api/ci-api';
 import { isTerminal, type CiRunDto, type CiStepDto, type ProjectDto } from '../api/dto';
 import { Async } from '../ui/async';
+import { ExpectedProgress, totalExpectedMillis } from '../ui/expected-progress';
 import {
   NONE,
   formatClock,
@@ -44,7 +45,7 @@ export const POLL_INTERVAL_MS = 3000;
 @Component({
   selector: 'app-run-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, QitsButton, RouterLink, StatusBadge],
+  imports: [Async, ExpectedProgress, QitsButton, RouterLink, StatusBadge],
   templateUrl: './run-page.html',
   styleUrl: './run-page.css',
 })
@@ -156,6 +157,23 @@ export class RunPage {
   });
 
   protected readonly steps = computed<readonly CiStepDto[]>(() => this.value()?.steps ?? []);
+
+  /**
+   * What this pipeline is expected to cost end to end, or the empty string when it predicts nothing.
+   *
+   * Drawn beside the duration on a **finished** run as well as a running one, which is the whole
+   * reason it is a fact rather than a label on the bar: "4m 12s" answers what this run took, and it
+   * only becomes fast or slow next to what the same pipeline usually takes.
+   */
+  protected readonly expectedTotal = computed<string>(() => {
+    const millis = totalExpectedMillis(this.value()?.expectedStepDurationsMillis);
+    return millis === null ? '' : formatElapsed(millis);
+  });
+
+  /** The bar is about a run in flight; a finished one has its real durations to show instead. */
+  protected readonly showProgress = computed(
+    () => this.running() && this.expectedTotal() !== '' && this.value() !== null,
+  );
 
   /**
    * A stopped run, which is a category of its own on this page.
@@ -416,13 +434,38 @@ export class RunPage {
     return formatDuration(step.startedAt, step.finishedAt);
   }
 
+  /**
+   * What step `stepIndex` was expected to take, or the empty string where nothing was predicted for
+   * it.
+   *
+   * Keyed by the step's own index rather than by its position in the list, because the expectations
+   * describe the **planned** pipeline while `steps` holds the ones that have finished — the two are
+   * the same list only on a run that ran to the end.
+   */
+  protected expectedStep(stepIndex: number): string {
+    const millis = this.value()?.expectedStepDurationsMillis?.[stepIndex];
+    return typeof millis === 'number' && millis > 0 ? formatElapsed(millis) : '';
+  }
+
   protected runDuration(run: CiRunDto): string {
     const from = run.status === 'QUEUED' ? run.createdAt : run.startedAt;
     return formatDuration(from, run.finishedAt, this.now());
   }
 
-  /** The live step has no timestamps at all, so its elapsed time is this client's measurement. */
+  /**
+   * How long the step executing right now has been executing.
+   *
+   * The relay's own `startedAt` when it carries one — it knows when the step began, and this client
+   * only knows when it first *heard* about it, which is later by up to one poll and by the whole
+   * page load when a run is opened mid-step. The sighting stays as the fallback for a daemon that
+   * answers no timestamp; it is a measurement of the watching rather than of the step, so it loses
+   * whenever there is a real one.
+   */
   protected liveElapsed(): string {
+    const startedAt = this.value()?.live?.startedAt;
+    if (startedAt) {
+      return formatDuration(startedAt, null, this.now());
+    }
     const since = this.liveSince();
     return since === 0 ? NONE : formatElapsed(this.now() - since);
   }

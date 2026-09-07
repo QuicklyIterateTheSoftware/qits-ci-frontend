@@ -9,9 +9,10 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { QITS_SCOPE, QitsButton, scopeCommands } from '@qits/ui-components';
-import { CI_TRIGGER_TYPES, type CiRunDto, type CiTriggerType } from '../api/dto';
+import { CI_TRIGGER_TYPES, isTerminal, type CiRunDto, type CiTriggerType } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
+import { ExpectedProgress, hasExpectations } from '../ui/expected-progress';
 import { formatClock, formatDayTime, formatDuration, shortId, shortSha } from '../ui/format';
 import type { Loadable } from '../ui/loadable';
 import { StatusBadge } from '../ui/status-badge';
@@ -59,7 +60,7 @@ interface RunGroup {
 @Component({
   selector: 'app-repo-runs',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, Empty, QitsButton, RouterLink, StatusBadge, TreeNode],
+  imports: [Async, Empty, ExpectedProgress, QitsButton, RouterLink, StatusBadge, TreeNode],
   template: `
     <app-async
       [state]="node().state"
@@ -95,6 +96,13 @@ interface RunGroup {
                         </span>
                         <span class="duration">{{ duration(run) }}</span>
                       </a>
+                      <!-- Under the row rather than in it: the columns are what a finished run is
+                           read by, and a bar only a minority of rows can draw would either steal a
+                           column from all of them or leave a hole in most. A run that is over says
+                           what it cost, which is the better answer than what it was expected to. -->
+                      @if (active(run) && predicts(run)) {
+                        <app-expected-progress class="progress" [run]="run" />
+                      }
                       @if (run.triggerType === 'EVENT') {
                         <p class="provenance">
                           ↳ {{ run.triggerEventName || 'event' }}
@@ -177,6 +185,11 @@ interface RunGroup {
     .duration {
       margin-left: auto;
     }
+    /* Indented to the run id, so it starts where the row's content does rather than under its
+       badge — the same alignment the provenance and cancellation lines already use. */
+    .progress {
+      margin: 0.1rem 0 0.35rem 2.6rem;
+    }
     .provenance,
     .cancelled {
       margin: 0 0 0.25rem 2.6rem;
@@ -213,6 +226,7 @@ export class RepoRuns {
   protected readonly shortSha = shortSha;
   protected readonly formatDayTime = formatDayTime;
   protected readonly formatClock = formatClock;
+  protected readonly predicts = hasExpectations;
 
   private readonly now = tickingNow();
   private readonly closed = signal<ReadonlySet<CiTriggerType>>(new Set());
@@ -276,5 +290,10 @@ export class RepoRuns {
   protected duration(run: CiRunDto): string {
     const from = run.status === 'QUEUED' ? run.createdAt : run.startedAt;
     return formatDuration(from, run.finishedAt, this.now());
+  }
+
+  /** Still in flight — the only rows with a prediction left to make about them. */
+  protected active(run: CiRunDto): boolean {
+    return !isTerminal(run.status);
   }
 }

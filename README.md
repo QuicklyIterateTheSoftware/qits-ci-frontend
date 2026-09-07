@@ -27,6 +27,17 @@ its own host (`ci.<env>.<domain>/`) through Quinoa. Two screens, no forms, and t
   enough. A run that gates a release request shows its `releaseRequestId`, and a re-run links back
   to the run it re-fires.
 
+A run still in flight also carries the **shape it is expected to take**: qits-ci answers a p95 of
+each planned step's historical runtime in the same pipeline, on the listings as well as on the single
+read, and both screens draw it as a segmented bar — one segment per step, each as wide as that step's
+share of the expected total, with a one-percent gap carved out of the segment *before* each boundary
+so the divisions land where the steps actually change. It fills from `startedAt` against a local
+clock and never polls for it. A queued run draws the empty track; a run that outlasts its own history
+holds at full and shifts tone, because the number is a shape and not a deadline. The run page adds
+the expected total beside `Duration` — kept on finished runs too, since a duration only reads as fast
+or slow next to one — and each step's expectation beside what it actually took. A run that predicts
+nothing renders exactly as it did before any of this existed.
+
 Both screens answer at a **scoped** address too — `/<projectSlug>/<group>/<repoName>/` and
 `/<projectSlug>/<group>/<repoName>/runs/<runId>` — which is the platform-wide URL grammar every
 SPA here shares. The middle segment is the repository's component where the platform gives it one
