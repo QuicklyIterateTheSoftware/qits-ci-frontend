@@ -8,11 +8,11 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { QITS_SCOPE, QitsButton, scopeCommands } from '@qits/ui-components';
+import { QITS_SCOPE, QitsButton, QitsStepProgress, scopeCommands } from '@qits/ui-components';
 import { CI_TRIGGER_TYPES, isTerminal, type CiRunDto, type CiTriggerType } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
-import { ExpectedProgress, hasExpectations } from '../ui/expected-progress';
+import { hasExpectations, progressSteps } from '../ui/expected-steps';
 import { formatClock, formatDayTime, formatDuration, shortId, shortSha } from '../ui/format';
 import type { Loadable } from '../ui/loadable';
 import { StatusBadge } from '../ui/status-badge';
@@ -60,7 +60,7 @@ interface RunGroup {
 @Component({
   selector: 'app-repo-runs',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, Empty, ExpectedProgress, QitsButton, RouterLink, StatusBadge, TreeNode],
+  imports: [Async, Empty, QitsButton, QitsStepProgress, RouterLink, StatusBadge, TreeNode],
   template: `
     <app-async
       [state]="node().state"
@@ -101,7 +101,11 @@ interface RunGroup {
                            column from all of them or leave a hole in most. A run that is over says
                            what it cost, which is the better answer than what it was expected to. -->
                       @if (active(run) && predicts(run)) {
-                        <app-expected-progress class="progress" [run]="run" />
+                        <qits-step-progress
+                          class="progress"
+                          [steps]="barSteps(run)"
+                          label="Build progress"
+                        />
                       }
                       @if (run.triggerType === 'EVENT') {
                         <p class="provenance">
@@ -227,6 +231,8 @@ export class RepoRuns {
   protected readonly formatDayTime = formatDayTime;
   protected readonly formatClock = formatClock;
   protected readonly predicts = hasExpectations;
+  /** The one mapping from a run to a bar, shared with the rail and the run page. */
+  protected readonly barSteps = progressSteps;
 
   private readonly now = tickingNow();
   private readonly closed = signal<ReadonlySet<CiTriggerType>>(new Set());

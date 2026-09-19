@@ -202,17 +202,38 @@ describe('ActiveRuns', () => {
    * belongs here more than anywhere: the row already says *what* is running, and the bar is the only
    * thing on this screen that says how much of it is left.
    */
+  /** Every bubble the rail is drawing, by the label under it. */
+  function bubbles(): string[] {
+    return Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.qits-step-progress-label'),
+    ).map((label) => label.textContent?.trim() ?? '');
+  }
+
   it('draws the expected shape under a run that carries one', async () => {
     mount();
     flushActive([
       run('r1', {
         startedAt: new Date(Date.now() - 45_000).toISOString(),
         expectedStepDurationsMillis: [10_000, 90_000],
+        steps: [
+          {
+            stepIndex: 0,
+            image: 'qits/build-images/node-base:latest',
+            status: 'SUCCESS',
+            exitCode: 0,
+            startedAt: new Date(Date.now() - 45_000).toISOString(),
+            finishedAt: new Date(Date.now() - 35_000).toISOString(),
+            output: null,
+          },
+        ],
+        live: { stepIndex: 1, output: '', startedAt: new Date(Date.now() - 35_000).toISOString() },
       }),
     ]);
     await settle();
 
+    // Bound to the steps, not to the wall clock: step 0 is over and step 1 is 35 of its 90 in.
     expect(bars()).toEqual(['45']);
+    expect(bubbles()).toEqual(['10s / 10s', '35s / 1m 30s']);
     expect(text()).toContain('running for 45s');
   });
 
@@ -223,7 +244,136 @@ describe('ActiveRuns', () => {
     await settle();
 
     expect(bars()).toEqual(['0']);
+    expect(bubbles()).toEqual(['10s', '1m 30s']);
     expect(text()).toContain('queued for 2m 07s');
+  });
+
+  // --- when will it start, and when will it be over ---
+
+  /**
+   * The rail's whole reason for existing is somebody wondering whether anything is happening, and a
+   * bare "queued for 2m 07s" answers the wrong half of that. How long it has waited is a complaint;
+   * when it will move is the answer — so the row now says both, and says the second one
+   * approximately, because it is a p95 and not a commitment.
+   */
+  it('tells a queued run when it is expected to start and to finish', async () => {
+    mount();
+    flushActive([
+      run('r1', {
+        status: 'QUEUED',
+        queuePosition: 2,
+        expectedStartInMillis: 720_000,
+        expectedFinishInMillis: 2_880_000,
+      }),
+    ]);
+    await settle();
+
+    expect(text()).toContain('#3 in the queue');
+    expect(text()).toContain('starts in about 12 min');
+    expect(text()).toContain('finishes in about 48 min');
+    // The wait itself is a different fact and it stays.
+    expect(text()).toContain('queued for 2m 07s');
+  });
+
+  /** 0-based on the wire, and 0 is not a place a person counts from. */
+  it('names the front of the queue rather than numbering it', async () => {
+    mount();
+    flushActive([run('r1', { status: 'QUEUED', queuePosition: 0 })]);
+    await settle();
+
+    expect(text()).toContain('next in the queue');
+    expect(text()).not.toContain('#1');
+  });
+
+  /** A prediction is never a clock time: "at 14:32" is a commitment and it is wrong once the queue moves. */
+  it('never spells an ETA as a wall clock', async () => {
+    mount();
+    flushActive([run('r1', { status: 'QUEUED', expectedStartInMillis: 2_880_000 })]);
+    await settle();
+
+    expect(text()).toContain('in about 48 min');
+    expect(text()).not.toMatch(/starts at \d/);
+  });
+
+  /**
+   * The case the epic calls out by name. A run nobody can forecast must not quietly fall back to the
+   * bare elapsed time — that reads as "nothing to see here" — and "unknown" would be true of all
+   * three causes while being useful for none. A run ahead being unmeasured says the wait is real and
+   * the cause is somebody else's build, which is a different next action entirely.
+   */
+  it('says why there is no estimate rather than silently showing none', async () => {
+    mount();
+    flushActive([
+      run('r1', { status: 'QUEUED', predictionUnavailable: 'RUN_AHEAD_HAS_NO_PREDICTION' }),
+    ]);
+    await settle();
+
+    expect(text()).toContain('no estimate — a run queued ahead of this one has never been measured');
+    expect(text()).toContain('queued for 2m 07s');
+  });
+
+  /** A word this build has not been taught is a word qits-ci added, and it is printed as it came. */
+  it('prints an unavailability qits-ci added verbatim rather than flattening it', async () => {
+    mount();
+    flushActive([run('r1', { status: 'QUEUED', predictionUnavailable: 'SOME_NEW_REASON' })]);
+    await settle();
+
+    expect(text()).toContain('no estimate — SOME_NEW_REASON');
+  });
+
+  /** An apology is for a run with nothing to say; a run with an ETA never carries both. */
+  it('does not apologise beside an estimate it actually has', async () => {
+    mount();
+    flushActive([
+      run('r1', {
+        status: 'QUEUED',
+        expectedStartInMillis: 120_000,
+        predictionUnavailable: 'RUN_HAS_NO_PREDICTION',
+      }),
+    ]);
+    await settle();
+
+    expect(text()).toContain('starts in about 2 min');
+    expect(text()).not.toContain('no estimate');
+  });
+
+  /**
+   * *Queued behind other work* and *stuck* are the two readings of a long wait, and they are the
+   * epic's stated motivation. A named blocker is a repository somebody can go and look at.
+   */
+  it('names what a run is waiting on when the ordering knows', async () => {
+    mount();
+    flushActive([
+      run('r1', {
+        status: 'QUEUED',
+        ordering: {
+          position: 1,
+          kindTier: 0,
+          priority: 'NORMAL',
+          priorityRank: 0,
+          topologyBlockers: [{ runId: 'r0', repoName: 'qits-eventstream-javalib' }],
+          selection: 'TOPOLOGY',
+        },
+      }),
+    ]);
+    await settle();
+
+    expect(text()).toContain('waiting on a run in qits-eventstream-javalib');
+  });
+
+  /**
+   * The zero-regression case for the whole of this: a qits-ci too old to answer any of the new
+   * fields draws the row it always drew.
+   */
+  it('forecasts nothing at all for a run that carries none of the new fields', async () => {
+    mount();
+    flushActive([run('r1', { status: 'QUEUED' })]);
+    await settle();
+
+    expect(text()).toContain('queued for 2m 07s');
+    expect(text()).not.toContain('no estimate');
+    expect(text()).not.toContain('in the queue');
+    expect(text()).not.toContain('in about');
   });
 
   /**

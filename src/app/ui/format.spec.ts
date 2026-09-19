@@ -4,6 +4,7 @@ import {
   formatDayTime,
   formatDuration,
   formatElapsed,
+  formatEta,
   formatInstant,
   repositoryLabel,
   runRepositoryLabel,
@@ -36,6 +37,49 @@ describe('format', () => {
     expect(formatElapsed(41_000)).toBe('41s');
     expect(formatElapsed(252_000)).toBe('4m 12s');
     expect(formatElapsed(3_840_000)).toBe('1h 04m');
+  });
+
+  /**
+   * The exact strings, pinned, because the wording *is* the feature. A prediction spelled the way a
+   * measurement is spelled borrows the measurement's authority, so every one of these is hedged and
+   * every one of them is coarse — and none of them is ever a clock time, which is the promise the
+   * epic explicitly refuses to make.
+   */
+  describe('formatEta', () => {
+    it('hedges to the minute below an hour and a half', () => {
+      expect(formatEta(2_880_000)).toBe('in about 48 min');
+      expect(formatEta(60_000)).toBe('in about 1 min');
+      expect(formatEta(5_340_000)).toBe('in about 89 min');
+    });
+
+    it('rounds to the minute rather than reporting seconds it does not know', () => {
+      expect(formatEta(127_000)).toBe('in about 2 min');
+      expect(formatEta(155_000)).toBe('in about 3 min');
+    });
+
+    /** An estimate reaching hours has error measured in the same units; a minute on it is noise. */
+    it('coarsens to the half hour once it reaches an hour and a half', () => {
+      expect(formatEta(5_400_000)).toBe('in about 1h 30m');
+      expect(formatEta(7_200_000)).toBe('in about 2h');
+      expect(formatEta(10_080_000)).toBe('in about 3h');
+      expect(formatEta(9_000_000)).toBe('in about 2h 30m');
+    });
+
+    /** There is no useful number under a minute, and none at all once the estimate is overtaken. */
+    it('says under a minute, and says any moment now once the instant has passed', () => {
+      expect(formatEta(41_000)).toBe('in under a minute');
+      expect(formatEta(1)).toBe('in under a minute');
+      expect(formatEta(0)).toBe('any moment now');
+      expect(formatEta(-90_000)).toBe('any moment now');
+      expect(formatEta(Number.NaN)).toBe('any moment now');
+    });
+
+    /** It is never a clock time: "at 14:32" is a commitment, and it is wrong the moment the queue moves. */
+    it('never spells a wall clock', () => {
+      for (const millis of [0, 41_000, 2_880_000, 10_080_000]) {
+        expect(formatEta(millis)).not.toMatch(/\d:\d/);
+      }
+    });
   });
 
   it('labels a repository by its registered name, never by its id', () => {

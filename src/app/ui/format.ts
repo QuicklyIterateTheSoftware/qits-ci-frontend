@@ -102,6 +102,57 @@ export function formatElapsed(millis: number): string {
 }
 
 /**
+ * A span of time **into the future**, spelled the way a prediction has to be spelled: approximately,
+ * and never as a clock time.
+ *
+ * ```
+ * in about 48 min
+ * ```
+ *
+ * <h3>Why this is not {@link formatElapsed}</h3>
+ *
+ * `formatElapsed` reads `4m 12s`, and it is right to: it reports something that has already
+ * happened, and a measurement is allowed to be exact. This reports qits-ci's estimate of when a run
+ * will start or finish, which is a p95 of what the same work took before — and the two need
+ * different spellings or the estimate borrows the measurement's authority. **A prediction spelled to
+ * the second reads as a promise**, so this one is deliberately coarse and deliberately hedged.
+ *
+ * <p>It is also never rendered as a wall-clock time. "at 14:32" is a commitment somebody can hold
+ * the platform to and a number that is wrong the moment the queue moves; "in about 48 min" ages into
+ * being approximately right rather than precisely wrong.
+ *
+ * <h3>The ladder</h3>
+ *
+ * <ul>
+ *   <li>`any moment now` — at or past the predicted instant. The estimate has been overtaken and
+ *       saying "in 0 min" would be pretending it had not.</li>
+ *   <li>`in under a minute` — under a minute. There is no useful number smaller than this one.</li>
+ *   <li>`in about 48 min` — up to an hour and a half, to the nearest minute.</li>
+ *   <li>`in about 2h` / `in about 2h 30m` — beyond that, to the nearest **half hour**. An estimate
+ *       reaching hours has error measured in the same units, and a minute on it is noise.</li>
+ * </ul>
+ *
+ * @param millis how far ahead the instant is, **relative to now** — which is exactly the form
+ *     qits-ci answers `expectedStartInMillis` and `expectedFinishInMillis` in, so nothing here ever
+ *     subtracts two clocks that were not read together.
+ */
+export function formatEta(millis: number): string {
+  if (!Number.isFinite(millis) || millis <= 0) {
+    return 'any moment now';
+  }
+  if (millis < 60_000) {
+    return 'in under a minute';
+  }
+  const minutes = Math.round(millis / 60_000);
+  if (minutes < 90) {
+    return `in about ${minutes} min`;
+  }
+  const halfHours = Math.round(millis / 1_800_000);
+  const hours = Math.floor(halfHours / 2);
+  return halfHours % 2 === 1 ? `in about ${hours}h 30m` : `in about ${hours}h`;
+}
+
+/**
  * The label for a repository row: its registered name.
  *
  * A row that answers no name falls back to the basename of its clone url, which is what this drew

@@ -42,13 +42,32 @@ describe('RepoRuns', () => {
     ...over,
   });
 
-  /** A run in flight, 45 of its expected 100 seconds in. */
+  /**
+   * A run in flight, 45 of its expected 100 seconds in — and, since the bar is bound to steps rather
+   * than to the wall clock, *through its steps*: step 0 is over and step 1 is 35 of its 90 in.
+   */
   const running = (id: string, over: Partial<CiRunDto> = {}): CiRunDto =>
     run(id, {
       status: 'RUNNING',
       startedAt: new Date(Date.now() - 45_000).toISOString(),
       finishedAt: null,
       expectedStepDurationsMillis: [10_000, 90_000],
+      steps: [
+        {
+          stepIndex: 0,
+          image: 'qits/build-images/node-base:latest',
+          status: 'SUCCESS',
+          exitCode: 0,
+          startedAt: new Date(Date.now() - 45_000).toISOString(),
+          finishedAt: new Date(Date.now() - 35_000).toISOString(),
+          output: null,
+        },
+      ],
+      live: {
+        stepIndex: 1,
+        output: '',
+        startedAt: new Date(Date.now() - 35_000).toISOString(),
+      },
       ...over,
     });
 
@@ -83,6 +102,13 @@ describe('RepoRuns', () => {
     return Array.from(host().querySelectorAll('.run .duration')).map((cell) => cell.textContent);
   }
 
+  /** Every bubble the row is drawing, by the label under it. */
+  function bubbles(): string[] {
+    return Array.from(host().querySelectorAll('.qits-step-progress-label')).map(
+      (label) => label.textContent?.trim() ?? '',
+    );
+  }
+
   it('draws the expected shape under a row whose run is still going', async () => {
     await show([running('r1')]);
 
@@ -90,10 +116,24 @@ describe('RepoRuns', () => {
     expect(columns()).toEqual(['45s']);
   });
 
+  /**
+   * The bar is bound to the run's **steps** now, not to its wall clock against a predicted total.
+   * Step 0 finished in the 10 seconds it was expected to take and step 1 is 35 of its 90 in — so the
+   * first bubble is full and the second is a third full, rather than one length of fill smeared
+   * across seams that happen to be drawn at the predicted boundaries.
+   */
+  it('fills each bubble from its own step rather than from the run’s elapsed total', async () => {
+    await show([running('r1')]);
+
+    expect(bubbles()).toEqual(['10s / 10s', '35s / 1m 30s']);
+  });
+
   it('draws an empty track for a queued row, which is what a queued run has done', async () => {
-    await show([running('r1', { status: 'QUEUED', startedAt: null })]);
+    await show([running('r1', { status: 'QUEUED', startedAt: null, steps: null, live: null })]);
 
     expect(bars()).toEqual(['0']);
+    // Drawn and empty: a queued run has the shape and has done none of it.
+    expect(bubbles()).toEqual(['10s', '1m 30s']);
   });
 
   /**

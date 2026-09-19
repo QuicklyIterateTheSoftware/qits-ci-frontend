@@ -56,6 +56,58 @@ export type CiStepStatus =
 export type CiTriggerType = 'POST_RECEIVE' | 'EVENT';
 
 /**
+ * Which phase of a release a run belongs to.
+ *
+ * A release is gated twice: `RELEASE_REQUEST` is phase one, the QA that decides whether the fold may
+ * ship, and `RELEASE` is phase two, the build that actually publishes it. Both runs carry the same
+ * `releaseRequestId`, so without this a client holding a request's runs could not tell them apart —
+ * and "QA is still going" and "the publish is still going" are different answers to the only
+ * question anybody is asking.
+ */
+export type CiRunPhase = 'RELEASE_REQUEST' | 'RELEASE';
+
+/**
+ * A run that has to go first, as qits-ci's ordering names it.
+ *
+ * `repoName` is a label and may be absent for exactly the reasons {@link runRepositoryLabel}
+ * describes; `runId` is the identity and is always there.
+ */
+export interface CiOrderingBlockerDto {
+  readonly runId: string;
+  readonly repoName?: string | null;
+}
+
+/**
+ * Why a queued run sits where it sits — qits-ci's claim ordering, shown rather than guessed at.
+ *
+ * Every field is qits-ci's own reasoning and none of it is re-derived here: a client that recomputed
+ * the order would eventually disagree with the daemon that actually claims the runs, and a queue
+ * explanation that contradicts the queue is worse than no explanation.
+ *
+ * `priority` and `selection` are **open strings**, treated the way `cancellationReason` already is: a
+ * word this build has not been taught is a word qits-ci added, and printing it verbatim is more
+ * honest than mapping it to a guess.
+ */
+export interface CiRunOrderingDto {
+  /** 0-based place in the suggested claim order — the same index as {@link CiRunDto.queuePosition}. */
+  readonly position: number;
+  /** Which band of work this is; lower goes first. */
+  readonly kindTier: number;
+  readonly priority?: string | null;
+  /** Where `priority` ranks within its tier; lower goes first. */
+  readonly priorityRank: number;
+  /**
+   * Runs that must finish before this one may be claimed, because this one depends on them.
+   *
+   * Non-empty is the difference between *queued behind other work* and *stuck*, which is the whole
+   * reason any of this is on the wire.
+   */
+  readonly topologyBlockers: readonly CiOrderingBlockerDto[];
+  /** Which rule put the run here, in qits-ci's own vocabulary. */
+  readonly selection: string;
+}
+
+/**
  * What a repository is for, as qits-projects classifies it.
  *
  * Widened additively: `DAEMON`, `FRONTEND`, `CLI` and `IMAGE` are the new names.
@@ -176,7 +228,63 @@ export interface CiRunDto {
    * precondition.
    */
   readonly expectedStepDurationsMillis?: readonly number[] | null;
+  /**
+   * Which phase of a release this run is, null for every run that serves none.
+   *
+   * The column existed long before the mapper copied it, so a client holding a release request's
+   * runs could not tell phase one from phase two. Optional and nullable: an older qits-ci answers
+   * nothing here and every reader must render as it did before the field existed.
+   */
+  readonly phase?: CiRunPhase | null;
+  /**
+   * This run's 0-based index in qits-ci's suggested claim order. Null unless it is queued.
+   *
+   * It is what lets a rail tell *queued behind other work* from *stuck* — a wait with a position in
+   * front of it is a queue doing its job, and a wait with none is a question.
+   */
+  readonly queuePosition?: number | null;
+  /**
+   * When this run is expected to start, **relative to the instant this response was computed** —
+   * never an absolute clock time.
+   *
+   * Relative on purpose. An absolute instant would be compared against the reader's own clock, which
+   * is not the server's, and a skew of a minute would show a run starting in the past. A relative
+   * span is correct the moment it is read, and stale in a way that only ever understates the wait.
+   *
+   * Null when there is nothing to predict from; {@link predictionUnavailable} says which case it is.
+   */
+  readonly expectedStartInMillis?: number | null;
+  /** When it is expected to finish, on the same relative-to-the-response footing. */
+  readonly expectedFinishInMillis?: number | null;
+  /**
+   * Why there is no ETA, when there is none — so a reader is told rather than left with a blank.
+   *
+   * `RUN_HAS_NO_PREDICTION` (this pipeline has never been measured),
+   * `RUN_AHEAD_HAS_NO_PREDICTION` (a queued run in front of it has not) and
+   * `RUNNING_RUN_HAS_NO_PREDICTION` (a run already executing has not) are the three qits-ci answers
+   * today, and they lead to different next actions — which is the reason the field is a token and
+   * not a boolean.
+   *
+   * An **open string**, exactly like `cancellationReason`: a word this build has not been taught is
+   * a word qits-ci added, and it is printed verbatim rather than flattened to "unknown".
+   */
+  readonly predictionUnavailable?: string | null;
+  /** Why the run sits where it does in the queue. Null unless qits-ci has an ordering to explain. */
+  readonly ordering?: CiRunOrderingDto | null;
+  /**
+   * The steps that have finished. Null on the per-repository listing, which carries none.
+   *
+   * `GET /ci/api/runs/active` **does** carry it — with every `output` null, since a listing is not a
+   * log pane — so the rail can draw a run's real progress through its planned steps without a
+   * per-run read. The shape is the same {@link CiStepDto} either way; only `output` differs.
+   */
   readonly steps: readonly CiStepDto[] | null;
+  /**
+   * The step executing right now, non-null only while `status` is `RUNNING`.
+   *
+   * Carried by `GET /ci/api/runs/active` as well as by the single read, with `output` null on the
+   * listing for the same reason `steps` has none there.
+   */
   readonly live: CiLiveStepDto | null;
 }
 

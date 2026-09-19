@@ -10,12 +10,18 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink, convertToParamMap } from '@angular/router';
-import { QITS_SCOPE, QitsButton, scopeCommands } from '@qits/ui-components';
+import {
+  QITS_SCOPE,
+  QitsButton,
+  QitsStepProgress,
+  scopeCommands,
+  type QitsStepProgressStep,
+} from '@qits/ui-components';
 import { RepositoryAttribution, type Attribution } from '../api/attribution';
 import { CiApi } from '../api/ci-api';
 import { isTerminal, type CiRunDto, type CiStepDto, type ProjectDto } from '../api/dto';
 import { Async } from '../ui/async';
-import { ExpectedProgress, totalExpectedMillis } from '../ui/expected-progress';
+import { progressSteps, totalExpectedMillis } from '../ui/expected-steps';
 import {
   NONE,
   formatClock,
@@ -45,7 +51,7 @@ export const POLL_INTERVAL_MS = 3000;
 @Component({
   selector: 'app-run-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, ExpectedProgress, QitsButton, RouterLink, StatusBadge],
+  imports: [Async, QitsButton, QitsStepProgress, RouterLink, StatusBadge],
   templateUrl: './run-page.html',
   styleUrl: './run-page.css',
 })
@@ -174,6 +180,42 @@ export class RunPage {
   protected readonly showProgress = computed(
     () => this.running() && this.expectedTotal() !== '' && this.value() !== null,
   );
+
+  /**
+   * The planned steps the bar draws, with this run's own timings hung on them.
+   *
+   * It is the **same** reading of the same data as the step rows below: each bubble fills from that
+   * step's own `startedAt` against that step's own expectation, which is exactly what
+   * `{{ liveElapsed() }} / {{ expected }} expected` says for the live row and what
+   * `{{ stepDuration(step) }} · expected {{ expected }}` says for a finished one. The bar is those
+   * rows drawn to scale, not a second opinion about them — see {@link progressSteps}.
+   */
+  protected readonly barSteps = computed<readonly QitsStepProgressStep[]>(() => {
+    const run = this.value();
+    return run === null ? [] : progressSteps(run);
+  });
+
+  /**
+   * Which gate of a release this run is, in words. Empty for a run that serves no release request,
+   * and for one answered by a qits-ci too old to say.
+   *
+   * Both phases carry the same `releaseRequestId`, so without this the two runs of one release are
+   * indistinguishable on screen — and "the QA is still going" and "the publish is still going" send
+   * a reader in opposite directions. A phase this build has not been taught is printed verbatim.
+   */
+  protected readonly phase = computed<string>(() => {
+    const phase = this.value()?.phase;
+    if (!phase) {
+      return '';
+    }
+    if (phase === 'RELEASE_REQUEST') {
+      return 'phase one · gating the request';
+    }
+    if (phase === 'RELEASE') {
+      return 'phase two · publishing the release';
+    }
+    return phase;
+  });
 
   /**
    * A stopped run, which is a category of its own on this page.

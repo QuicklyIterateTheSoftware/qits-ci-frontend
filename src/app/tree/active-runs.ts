@@ -9,13 +9,20 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { QITS_SCOPE, scopeCommands } from '@qits/ui-components';
+import { QITS_SCOPE, QitsStepProgress, scopeCommands } from '@qits/ui-components';
 import { CiApi } from '../api/ci-api';
 import type { CiRunDto } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
-import { ExpectedProgress, hasExpectations } from '../ui/expected-progress';
-import { formatDayTime, formatDuration, runRepositoryLabel, shortSha } from '../ui/format';
+import { hasExpectations, progressSteps } from '../ui/expected-steps';
+import {
+  formatDayTime,
+  formatDuration,
+  formatEta,
+  named,
+  runRepositoryLabel,
+  shortSha,
+} from '../ui/format';
 import { LOADING, describeError, failed, ready, type Loadable } from '../ui/loadable';
 import { StatusBadge } from '../ui/status-badge';
 import { tickingNow } from '../ui/ticker';
@@ -106,7 +113,7 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
 @Component({
   selector: 'app-active-runs',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, Empty, ExpectedProgress, RouterLink, StatusBadge],
+  imports: [Async, Empty, QitsStepProgress, RouterLink, StatusBadge],
   template: `
     @if (finished().length > 0) {
       <h2>Finished runs</h2>
@@ -158,11 +165,34 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
                   <code class="ref">{{ run.branch }}&#64;{{ shortSha(run.commitSha) }}</code>
                   <span class="age">{{ age(run) }}</span>
                 </span>
+                <!-- How long it has waited and when it will move are different facts, so the age
+                     above stays and the forecast is its own line. Everything here is approximate and
+                     nothing is a clock time — see formatEta. -->
+                @if (queueWhere(run)) {
+                  <span class="line forecast">{{ queueWhere(run) }}</span>
+                }
+                @if (startsIn(run)) {
+                  <span class="line forecast">starts {{ startsIn(run) }}</span>
+                }
+                @if (finishesIn(run)) {
+                  <span class="line forecast">finishes {{ finishesIn(run) }}</span>
+                }
+                <!-- A run nobody can forecast says so, and says WHICH of the three cases it is: a
+                     silent fall back to the bare elapsed time would read as "nothing is wrong here",
+                     and "a run ahead of this one has never been measured" is a different and more
+                     actionable sentence than "unknown". -->
+                @if (noForecast(run)) {
+                  <span class="line forecast unknown">{{ noForecast(run) }}</span>
+                }
+                @if (blockedBy(run)) {
+                  <span class="line forecast">{{ blockedBy(run) }}</span>
+                }
                 <!-- The shape the run is expected to take, under the row that says which run it is.
-                     A queued one draws the empty track — it has a prediction and has not started —
-                     and the "queued for" above is still what says how long it has been waiting. -->
+                     One bubble per PLANNED step, each filling against its own expectation, so a
+                     queued run's bubbles are all empty and an overrunning step fills its own and
+                     stops there rather than eclipsing the ones after it. -->
                 @if (predicts(run)) {
-                  <app-expected-progress [run]="run" />
+                  <qits-step-progress [steps]="barSteps(run)" label="Build progress" />
                 }
               </a>
             </li>
@@ -242,7 +272,23 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
     .age {
       margin-left: auto;
     }
-    .entry app-expected-progress {
+    /* A forecast is quieter than the facts above it, and italic, because it is the one thing in this
+       rail that has not happened yet. */
+    .forecast {
+      color: #6b7280;
+      font-size: 0.8rem;
+      font-style: italic;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* "No estimate, and here is why" is not an error — a pipeline nobody has measured yet is the
+       ordinary state of new work — so it is the same muted tone rather than a warning colour. */
+    .forecast.unknown {
+      color: #9ca3af;
+    }
+    .entry qits-step-progress {
+      display: block;
       margin-top: 0.3rem;
     }
   `,
@@ -285,6 +331,8 @@ export class ActiveRuns {
   protected readonly repoLabel = runRepositoryLabel;
   protected readonly formatDayTime = formatDayTime;
   protected readonly predicts = hasExpectations;
+  /** The one mapping from a run to a bar, shared with the tree rows and the run page. */
+  protected readonly barSteps = progressSteps;
 
   protected readonly state = signal<Loadable<readonly CiRunDto[]>>(LOADING);
 
@@ -453,11 +501,95 @@ export class ActiveRuns {
     this.sync();
   }
 
-  /** Queue age until claimed; execution age restarts from the worker's start timestamp. */
+  /**
+   * Queue age until claimed; execution age restarts from the worker's start timestamp.
+   *
+   * This stays exactly as it was now that the row also forecasts. *How long it has waited* and *when
+   * it will start* are two different facts and a reader wants both: the first is what turns a queue
+   * into a complaint, the second is what answers it.
+   */
   protected age(run: CiRunDto): string {
     if (run.status === 'QUEUED') {
       return `queued for ${formatDuration(run.createdAt, null, this.now())}`;
     }
     return `running for ${formatDuration(run.startedAt, null, this.now())}`;
+  }
+
+  /**
+   * Where this run sits in qits-ci's claim order, for a queued run that has a position.
+   *
+   * This is the line that tells *queued behind other work* from *stuck*, which is the whole reason
+   * the queue is drawn at all. `queuePosition` is 0-based on the wire and 0 is not a place a person
+   * counts from, so the front of the queue is named rather than numbered: "next" is a state, and
+   * "#1" would invite the reader to wonder what #0 was.
+   */
+  protected queueWhere(run: CiRunDto): string {
+    const position = run.queuePosition;
+    if (run.status !== 'QUEUED' || typeof position !== 'number' || position < 0) {
+      return '';
+    }
+    return position === 0 ? 'next in the queue' : `#${position + 1} in the queue`;
+  }
+
+  /** When a queued run is expected to be claimed. A run that has started has no start left to predict. */
+  protected startsIn(run: CiRunDto): string {
+    const millis = run.expectedStartInMillis;
+    return run.status === 'QUEUED' && typeof millis === 'number' ? formatEta(millis) : '';
+  }
+
+  /**
+   * When the run is expected to be over — the question the epic is named after, and the one worth
+   * answering on a run that is already executing as much as on one that is still waiting.
+   */
+  protected finishesIn(run: CiRunDto): string {
+    const millis = run.expectedFinishInMillis;
+    return typeof millis === 'number' ? formatEta(millis) : '';
+  }
+
+  /**
+   * Why there is no forecast, in a sentence — drawn only where there is genuinely no forecast, so a
+   * run qits-ci *can* predict never carries an apology as well.
+   *
+   * The three tokens are three different situations with three different next actions, which is why
+   * one "unknown" would be the wrong answer to all of them: this pipeline being unmeasured is a
+   * thing that fixes itself on the next successful run, while a run *ahead* being unmeasured says
+   * the wait is real and the cause is somebody else's build. A token this client has not been taught
+   * is printed as qits-ci spelled it, the same way a cancellation reason is.
+   */
+  protected noForecast(run: CiRunDto): string {
+    const reason = named(run.predictionUnavailable);
+    if (!reason || this.startsIn(run) || this.finishesIn(run)) {
+      return '';
+    }
+    switch (reason) {
+      case 'RUN_HAS_NO_PREDICTION':
+        return 'no estimate — this pipeline has never run to completion before';
+      case 'RUN_AHEAD_HAS_NO_PREDICTION':
+        return 'no estimate — a run queued ahead of this one has never been measured';
+      case 'RUNNING_RUN_HAS_NO_PREDICTION':
+        return 'no estimate — a run already executing has never been measured';
+      default:
+        return `no estimate — ${reason}`;
+    }
+  }
+
+  /**
+   * What this run is waiting for, when qits-ci's ordering names something concrete.
+   *
+   * Only `topologyBlockers` is drawn out of `ordering`. The rest of that object — the tier, the
+   * priority rank, the selection rule — is qits-ci explaining its scheduler, and this rail is four
+   * inches wide beside a tree: a blocker is a *repository somebody can go and look at*, and the
+   * ranks are not. The position is already said by {@link queueWhere}.
+   */
+  protected blockedBy(run: CiRunDto): string {
+    const blockers = run.ordering?.topologyBlockers ?? [];
+    if (blockers.length === 0) {
+      return '';
+    }
+    const first = named(blockers[0].repoName);
+    if (blockers.length === 1) {
+      return first ? `waiting on a run in ${first}` : 'waiting on one run ahead of it';
+    }
+    return `waiting on ${blockers.length} runs ahead of it`;
   }
 }

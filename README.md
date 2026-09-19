@@ -29,14 +29,32 @@ its own host (`ci.<env>.<domain>/`) through Quinoa. Two screens, no forms, and t
 
 A run still in flight also carries the **shape it is expected to take**: qits-ci answers a p95 of
 each planned step's historical runtime in the same pipeline, on the listings as well as on the single
-read, and both screens draw it as a segmented bar — one segment per step, each as wide as that step's
-share of the expected total, with a one-percent gap carved out of the segment *before* each boundary
-so the divisions land where the steps actually change. It fills from `startedAt` against a local
-clock and never polls for it. A queued run draws the empty track; a run that outlasts its own history
-holds at full and shifts tone, because the number is a shape and not a deadline. The run page adds
-the expected total beside `Duration` — kept on finished runs too, since a duration only reads as fast
-or slow next to one — and each step's expectation beside what it actually took. A run that predicts
-nothing renders exactly as it did before any of this existed.
+read, and both screens draw it with `<qits-step-progress>` from `@qits/ui-components` — one bubble
+per **planned** step, each as wide as that step's share of the expected total, with a one-percent
+seam carved out of the bubble *before* each boundary so the divisions land where the steps actually
+change.
+
+**Each bubble fills from its own step**, against its own expectation: 0 for a step the run has not
+reached, 100 for one that has finished, and `now - startedAt` for the one in flight, ticking on the
+component's own one-second clock and never polling. That is the one rule the bar exists to keep. It
+used to draw the seams from the prediction and then fill *the whole track* from wall-clock elapsed
+against the predicted *total*, which is backwards from what a segmented bar appears to promise — a
+step that overran ate the seams after it, and a step that finished early left the next segment
+filling before that step had started. The seams were real boundaries of a prediction drawn as if
+they were boundaries of the build. Two copies of that math existed, one here and one in
+`QitsMainLayout`; they are one component now, and this repository is its second caller.
+
+The mapping from a `CiRunDto` to that component's input lives in one place, `src/app/ui/expected-steps.ts`,
+and is keyed by **`stepIndex`** rather than by array position — a step is persisted when it *ends*,
+so mid-run `steps` is shorter than the pipeline and its element order says nothing about which step
+is which. `live.stepIndex` supplies the in-flight step's start and never overrides a persisted one,
+so a stale pointer cannot reopen a step that has already finished.
+
+A queued run draws the empty track; a run that outlasts its own history holds at full and shifts
+tone, because the number is a shape and not a deadline. The run page adds the expected total beside
+`Duration` — kept on finished runs too, since a duration only reads as fast or slow next to one —
+and each step's expectation beside what it actually took, which is the same reading the bar draws to
+scale. A run that predicts nothing renders exactly as it did before any of this existed.
 
 Both screens answer at a **scoped** address too — `/<projectSlug>/<group>/<repoName>/` and
 `/<projectSlug>/<group>/<repoName>/runs/<runId>` — which is the platform-wide URL grammar every
@@ -60,6 +78,16 @@ still in flight. Both are re-read on one ten-second tick, which is also how a co
 detected: a run leaves the first list and arrives in the second on the same tick, with no per-run
 read anywhere. A run that starts _and_ finishes between two ticks is never drawn as active and still
 lands in the stack.
+
+A queued row in the active list says **when it is expected to move**, not only how long it has been
+waiting: where it sits in qits-ci's claim order (`next in the queue`, `#3 in the queue`), when it is
+expected to start and when to finish. Both spans arrive relative to the response's own instant and
+are spelled approximately — `starts in about 12 min` — never as a clock time, because the number is
+a p95 and "at 14:32" is a commitment that is wrong the moment the queue moves. The elapsed wait stays
+beside it: how long it has waited and when it will start are different facts. A run qits-ci cannot
+forecast **says so and says which case it is** — this pipeline has never run to completion, a run
+queued ahead of it has never been measured, a run already executing has never been measured — rather
+than falling back to the bare elapsed time, which reads as "nothing to see here".
 
 The finished stack is **append-only for as long as the page is open** — five rows become six, then
 seven — and a reload starts again at five. Nothing is ever trimmed while you watch, because a rail

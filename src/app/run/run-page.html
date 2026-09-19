@@ -67,8 +67,11 @@
     <!-- High on the page and above the provenance, because on a run that is still going it is the
          thing the reader came for: how far through its usual shape this one is. It is a p95 of the
          same steps in the same pipeline, so it is a shape rather than a deadline — a run that
-         outlasts it holds full and changes tone, and nothing here calls that late. -->
-    <app-expected-progress class="run-progress" [run]="run" />
+         outlasts it holds full and changes tone, and nothing here calls that late.
+
+         One bubble per PLANNED step, each filling from that step's own start against that step's own
+         expectation — the same reading the step rows below give in words, drawn to scale. -->
+    <qits-step-progress class="run-progress" [steps]="barSteps()" label="Build progress" />
   }
 
   <dl class="facts">
@@ -97,6 +100,11 @@
       <dt>Release request</dt>
       <dd>
         <code>{{ run.releaseRequestId }}</code>
+        <!-- Both gates of one release carry the same request id, so the id alone cannot say which
+             of the two this run is — and they are different answers to "what is this waiting on". -->
+        @if (phase()) {
+          · {{ phase() }}
+        }
       </dd>
     }
 

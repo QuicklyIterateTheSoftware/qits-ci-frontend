@@ -597,8 +597,21 @@ describe('RunPage', () => {
     return text().replace(/\s+/g, ' ');
   }
 
+  /** The shared bar, which is the host element itself: `<qits-step-progress role="progressbar">`. */
   function bar(): Element | null {
-    return page().querySelector('.run-progress [role="progressbar"]');
+    return page().querySelector('.run-progress[role="progressbar"]');
+  }
+
+  /** What the bar says the run has done, as a percentage of the expected work. */
+  function barPercent(): string | null {
+    return bar()?.getAttribute('aria-valuenow') ?? null;
+  }
+
+  /** One bubble per planned step, with the label drawn under it. */
+  function bubbles(): string[] {
+    return Array.from(page().querySelectorAll('.run-progress .qits-step-progress-label')).map(
+      (label) => label.textContent?.trim() ?? '',
+    );
   }
 
   /**
@@ -650,6 +663,88 @@ describe('RunPage', () => {
     expect(phrase()).toContain('12s / 38s expected');
     // And the bar is drawn high on the page while the run is in flight.
     expect(bar()).not.toBeNull();
+  });
+
+  /**
+   * The bar and the step rows are one reading of one set of facts, which is the whole of what this
+   * epic changed. The old bar filled the **whole track** from wall-clock elapsed against the
+   * predicted **total** and never looked at `steps` at all — so a step that overran ate the seams
+   * after it, and a step that finished early left the next segment filling before it had started.
+   *
+   * Here: step 0 was expected to take 10s and really took 2m 41s, and step 1 is 12 seconds into an
+   * expected 38. The first bubble is full, the second is a third full, and both say in their own
+   * label exactly what the rows below say in words.
+   */
+  it('draws one bubble per planned step, each filled from that step’s own timings', async () => {
+    await open();
+    expectRun().flush(
+      run({
+        status: 'RUNNING',
+        finishedAt: null,
+        expectedStepDurationsMillis: [10_000, 38_000],
+        steps: [step(0)],
+        live: {
+          stepIndex: 1,
+          output: '#14 DONE 2.4s\n',
+          startedAt: new Date(Date.now() - 12_000).toISOString(),
+        },
+      }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(bubbles()).toEqual(['2m 41s / 10s', '12s / 38s']);
+    // 10s of expected work done plus 12 of step 1's 38: 22 of the pipeline's 48.
+    expect(barPercent()).toBe('46');
+  });
+
+  /**
+   * A step the run has not reached is drawn and empty. This is the case the bar it replaces could
+   * not express at all: with one number for the whole track, the only way to draw "step 2 has not
+   * started" was to hope the total had not been overtaken.
+   */
+  it('leaves the bubble of a step the run has not reached empty', async () => {
+    await open();
+    expectRun().flush(
+      run({
+        status: 'QUEUED',
+        startedAt: null,
+        finishedAt: null,
+        steps: null,
+        live: null,
+        expectedStepDurationsMillis: [10_000, 90_000],
+      }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(bubbles()).toEqual(['10s', '1m 30s']);
+    expect(barPercent()).toBe('0');
+  });
+
+  /**
+   * Both runs of one release carry the same `releaseRequestId`, so the id alone cannot tell the QA
+   * that decides whether it ships from the build that publishes it — and those are opposite answers
+   * to "what is this release waiting on".
+   */
+  it('says which phase of a release a gating run is', async () => {
+    await open();
+    expectRun().flush(run({ releaseRequestId: 'rr-1', phase: 'RELEASE' }));
+    await settle();
+    await flushAttribution();
+
+    expect(phrase()).toContain('phase two · publishing the release');
+  });
+
+  /** A qits-ci too old to answer the field renders exactly as it did before the field existed. */
+  it('says nothing about a phase a run does not carry', async () => {
+    await open();
+    expectRun().flush(run({ releaseRequestId: 'rr-1' }));
+    await settle();
+    await flushAttribution();
+
+    expect(phrase()).toContain('rr-1');
+    expect(phrase()).not.toContain('phase');
   });
 
   /**
