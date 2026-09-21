@@ -214,6 +214,19 @@ export interface CiRunDto {
   readonly retryOfRunId: string | null;
   readonly configPath: string | null;
   /**
+   * The shared release archetype that composed this run's pipeline, null for a run built from a
+   * repository's own bespoke `release.yml` with no `archetype:` key.
+   *
+   * Optional and nullable, and both say the same thing: an older qits-ci answers nothing here, and
+   * so does every run that existed before this field did — a reader with no expectations renders as
+   * it did before the field existed.
+   */
+  readonly archetypeName?: string | null;
+  /** The archetype file's path within the wrapper repository. Null under the same conditions as `archetypeName`. */
+  readonly archetypeConfigPath?: string | null;
+  /** The wrapper revision the archetype was read at. Null under the same conditions as `archetypeName`. */
+  readonly archetypeRev?: string | null;
+  /**
    * How long each planned step is expected to take, in millis and in pipeline order — the p95 of the
    * same step's historical runtimes in the same pipeline.
    *

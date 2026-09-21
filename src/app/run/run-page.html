@@ -96,6 +96,18 @@
       <code>{{ run.configPath || none }}</code>
     </dd>
 
+    <dt>Archetype</dt>
+    <dd>
+      @if (run.archetypeName) {
+        {{ run.archetypeName }}
+        @if (run.archetypeRev) {
+          · <code>{{ shortSha(run.archetypeRev) }}</code>
+        }
+      } @else {
+        {{ none }}
+      }
+    </dd>
+
     @if (run.releaseRequestId) {
       <dt>Release request</dt>
       <dd>
