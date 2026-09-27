@@ -118,4 +118,67 @@ describe('CiApi', () => {
       .flush({ message: 'No such run' }, { status: 404, statusText: 'Not Found' });
     await expect(run).rejects.toBeInstanceOf(HttpErrorResponse);
   });
+
+  it('reads the queue bare, not enveloped', async () => {
+    const queue = api.queue();
+    http.expectOne('/ci/api/runs/queue').flush({
+      concurrentBuilds: 4,
+      generatedAt: '2026-07-31T12:00:00Z',
+      running: [],
+      queued: [],
+      runners: [{ id: 'r1', name: 'runner-1', slots: 2, held: 1, connected: true }],
+    });
+    await expect(queue).resolves.toMatchObject({ concurrentBuilds: 4, runners: [{ id: 'r1' }] });
+  });
+
+  it('reads every runner, bare', async () => {
+    const runners = api.runners();
+    http.expectOne('/ci/api/runners').flush([{ id: 'r1', name: 'runner-1' }]);
+    await expect(runners).resolves.toMatchObject([{ id: 'r1', name: 'runner-1' }]);
+  });
+
+  it('creates a runner with a POST and answers its install script', async () => {
+    const created = api.createRunner({ name: 'runner-1', slots: 2 });
+    const request = http.expectOne('/ci/api/runners');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ name: 'runner-1', slots: 2 });
+    request.flush(
+      { id: 'r1', name: 'runner-1', slots: 2, installScript: '#!/bin/sh\n…' },
+      { status: 201, statusText: 'Created' },
+    );
+    await expect(created).resolves.toMatchObject({ id: 'r1', installScript: '#!/bin/sh\n…' });
+  });
+
+  it('patches a runner with only the fields sent', async () => {
+    const patched = api.patchRunner('r1', { slots: 4 });
+    const request = http.expectOne('/ci/api/runners/r1');
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ slots: 4 });
+    request.flush({ id: 'r1', name: 'runner-1', slots: 4 });
+    await expect(patched).resolves.toMatchObject({ slots: 4 });
+  });
+
+  it('replaces a registration token with a POST and answers a fresh install script', async () => {
+    const replaced = api.replaceRegistrationToken('r1');
+    const request = http.expectOne('/ci/api/runners/r1/registration-token');
+    expect(request.request.method).toBe('POST');
+    request.flush({ id: 'r1', name: 'runner-1', installScript: '#!/bin/sh\n…new…' });
+    await expect(replaced).resolves.toMatchObject({ installScript: '#!/bin/sh\n…new…' });
+  });
+
+  it('deletes a runner and accepts the empty 204 body', async () => {
+    const deleted = api.deleteRunner('r1');
+    const request = http.expectOne('/ci/api/runners/r1');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(deleted).resolves.toBeUndefined();
+  });
+
+  it('rejects a delete of a runner still holding a run with the body qits-ci sends', async () => {
+    const deleted = api.deleteRunner('r1');
+    http
+      .expectOne('/ci/api/runners/r1')
+      .flush({ message: 'This runner still holds 2 runs' }, { status: 409, statusText: 'Conflict' });
+    await expect(deleted).rejects.toBeInstanceOf(HttpErrorResponse);
+  });
 });

@@ -2,6 +2,7 @@ import type { CanMatchFn, Routes } from '@angular/router';
 import { QITS_CATEGORIES, QitsMainLayout, type QitsCategory } from '@qits/ui-components';
 import { NotFound } from './not-found/not-found';
 import { RunPage } from './run/run-page';
+import { RunnersPage } from './runners/runners-page';
 import { TreePage } from './tree/tree-page';
 
 /**
@@ -26,9 +27,21 @@ const own: Routes = [
   { path: 'runs/:runId', component: RunPage },
 ];
 
+/**
+ * The one route that is this application's own and yet is not scoped by project or repository at
+ * all: a runner is infrastructure the whole estate shares, not something a project owns, so
+ * `/qits/runners` and `/qits/services/qits-ci/runners` are not this page — they are simply
+ * unmatched, the same as any other address `own` does not carry into the scoped forms below.
+ * Separate from `own` for exactly that reason: it must reach the top-level children directly and
+ * never through `own`'s two other appearances.
+ */
+const rootOnly: Routes = [{ path: 'runners', component: RunnersPage }];
+
 /** The first segments this application's own routes spell, which no project and no group can be. */
 const OWN_SEGMENTS: ReadonlySet<string> = new Set(
-  own.map((route) => (route.path ?? '').split('/')[0]).filter((segment) => segment.length > 0),
+  [...own, ...rootOnly]
+    .map((route) => (route.path ?? '').split('/')[0])
+    .filter((segment) => segment.length > 0),
 );
 
 /**
@@ -91,6 +104,7 @@ export const routes: Routes = [
     component: QitsMainLayout,
     children: [
       ...own,
+      ...rootOnly,
       { path: ':project/:group/:repository', canMatch: [isRepositoryAddress], children: own },
       { path: ':project', children: own },
       { path: '**', component: NotFound },

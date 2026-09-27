@@ -299,6 +299,20 @@ export interface CiRunDto {
    * listing for the same reason `steps` has none there.
    */
   readonly live: CiLiveStepDto | null;
+  /**
+   * Which runner executed this run: the runner's opaque id, or null for the built-in executor every
+   * qits-ci deployment already had before a runner could register.
+   *
+   * Optional and nullable, and both say the same thing every other field added after the fact does:
+   * a qits-ci too old to answer this, and every run recorded before runners existed, render as
+   * "local" — see {@link CiRunDto.runnerName} for the label — rather than as a gap.
+   */
+  readonly runnerId?: string | null;
+  /**
+   * The runner's name, carried alongside {@link CiRunDto.runnerId} so a page does not have to hold
+   * the whole runner list just to label one run. Null under the same two conditions as the id.
+   */
+  readonly runnerName?: string | null;
 }
 
 /**
@@ -387,4 +401,100 @@ export interface ProjectEntriesResponse {
 /** The same envelope, one level down. */
 export interface RepositoryEntriesResponse {
   readonly entries: readonly { readonly repository: RepositoryDto }[];
+}
+
+/**
+ * Where a runner sits relative to the platform's own network: `INTERNAL` beside the daemons this
+ * deployment already runs, `EDGE` for one registered from outside it. Presentational only — this
+ * client draws it as a plain fact and makes no decision on the strength of it.
+ */
+export type CiRunnerPlane = 'INTERNAL' | 'EDGE';
+
+/**
+ * What a runner announced about itself at registration. Every field is optional: an older runner
+ * binary answers fewer of them, and the whole object is null on a runner that has never connected
+ * to say anything at all.
+ */
+export interface CiRunnerCapabilities {
+  readonly docker?: boolean | null;
+  readonly arch?: string | null;
+  readonly os?: string | null;
+  readonly runnerVersion?: string | null;
+  /** Free-form key/value pairs a runner was started with, shown as chips and nothing more. */
+  readonly labels?: Readonly<Record<string, string>> | null;
+}
+
+/**
+ * A runner qits-ci knows about, whether or not it has ever connected.
+ *
+ * `registered` and `connected` are two different facts and both are drawn: a runner can be
+ * registered — an install script was issued for it — and away right now, which is a different
+ * picture from one that has never registered at all. `heldRuns` is what a delete has to check
+ * client-side before it is offered, since the server answers the same fact with a 409.
+ */
+export interface CiRunnerDto {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly slots: number;
+  readonly plane: CiRunnerPlane;
+  readonly capabilities: CiRunnerCapabilities | null;
+  readonly registered: boolean;
+  readonly connected: boolean;
+  readonly heldRuns: number;
+  readonly lastSeenAt: string | null;
+  readonly createdAt: string;
+}
+
+/**
+ * What creating a runner, or replacing its registration token, answers: the runner as it now
+ * stands, plus the one-time install script.
+ *
+ * `installScript` is carried on the wire and nowhere else — this client never persists it past the
+ * panel that shows it once, because the token inside it is single-use and showing it a second time
+ * is not a feature this client can honestly offer.
+ */
+export interface CiRunnerCreated extends CiRunnerDto {
+  readonly installScript: string;
+}
+
+/** What `POST /ci/api/runners` takes: the two facts a runner cannot be created without. */
+export interface CreateRunnerRequest {
+  readonly name: string;
+  readonly description?: string | null;
+  readonly slots: number;
+}
+
+/** What `PATCH /ci/api/runners/{id}` takes. Both fields are optional; send only what changed. */
+export interface PatchRunnerRequest {
+  readonly slots?: number;
+  readonly description?: string | null;
+}
+
+/**
+ * One runner as the queue counts it: enough to say how much capacity it is contributing right now,
+ * and nothing a queue view needs to join elsewhere for.
+ */
+export interface CiQueueRunnerSummaryDto {
+  readonly id: string;
+  readonly name: string;
+  readonly slots: number;
+  readonly held: number;
+  readonly connected: boolean;
+}
+
+/**
+ * `GET /ci/api/runs/queue`'s envelope: the queue at one instant, plus what it was computed against.
+ *
+ * `runners` is optional and nullable for the same reason every field added after the fact is on
+ * this client: a qits-ci that predates runners answers nothing here, and a reader with no
+ * expectations draws exactly what it drew before the field existed — the platform-wide slot count
+ * collapses to `concurrentBuilds` alone.
+ */
+export interface CiQueueResponse {
+  readonly concurrentBuilds: number;
+  readonly generatedAt: string;
+  readonly running: readonly CiRunDto[];
+  readonly queued: readonly CiRunDto[];
+  readonly runners?: readonly CiQueueRunnerSummaryDto[] | null;
 }

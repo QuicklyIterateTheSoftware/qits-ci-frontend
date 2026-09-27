@@ -3,11 +3,16 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { QITS_API_BASE } from './api-base';
 import type {
+  CiQueueResponse,
   CiRepositoriesResponse,
   CiRepositorySummariesResponse,
   CiRepositorySummaryDto,
   CiRunDto,
+  CiRunnerCreated,
+  CiRunnerDto,
   CiRunsResponse,
+  CreateRunnerRequest,
+  PatchRunnerRequest,
 } from './dto';
 
 /**
@@ -146,6 +151,65 @@ export class CiApi {
       ),
     );
     return response.runId;
+  }
+
+  /**
+   * The run queue as qits-ci itself sees it: how much capacity it has, running and queued runs in
+   * claim order, and — where the deployment answers it — the runners sharing that capacity.
+   *
+   * Bare, not enveloped, like the single-run read: qits-ci's own record carries these fields at its
+   * top level rather than wrapping a `runs` list, and this interface is copied field-for-field.
+   */
+  queue(): Promise<CiQueueResponse> {
+    return firstValueFrom(this.http.get<CiQueueResponse>(`${this.base}/ci/api/runs/queue`));
+  }
+
+  /** Every runner qits-ci knows about, whether or not it has ever connected. Bare, not enveloped. */
+  runners(): Promise<readonly CiRunnerDto[]> {
+    return firstValueFrom(this.http.get<readonly CiRunnerDto[]>(`${this.base}/ci/api/runners`));
+  }
+
+  /**
+   * Register a new runner and answer its one-time install script alongside it.
+   *
+   * The 201 body is the only place the script is ever carried — see {@link CiRunnerCreated} — so
+   * the caller must show it now or not at all.
+   */
+  createRunner(body: CreateRunnerRequest): Promise<CiRunnerCreated> {
+    return firstValueFrom(
+      this.http.post<CiRunnerCreated>(`${this.base}/ci/api/runners`, body),
+    );
+  }
+
+  /** Change a runner's slots and/or description. Send only the fields that changed. */
+  patchRunner(id: string, body: PatchRunnerRequest): Promise<CiRunnerDto> {
+    return firstValueFrom(
+      this.http.patch<CiRunnerDto>(`${this.base}/ci/api/runners/${encodeURIComponent(id)}`, body),
+    );
+  }
+
+  /**
+   * Mint a fresh registration token for a runner that already exists, answering a new install
+   * script the same way creation does. The old token stops working the moment this one is issued.
+   */
+  replaceRegistrationToken(id: string): Promise<CiRunnerCreated> {
+    return firstValueFrom(
+      this.http.post<CiRunnerCreated>(
+        `${this.base}/ci/api/runners/${encodeURIComponent(id)}/registration-token`,
+        null,
+      ),
+    );
+  }
+
+  /**
+   * Remove a runner. 204 on success; a runner still holding a run answers 409 with a message this
+   * client renders rather than a generic failure, since it is a fact the caller can act on — wait,
+   * or move the run first.
+   */
+  async deleteRunner(id: string): Promise<void> {
+    await firstValueFrom(
+      this.http.delete(`${this.base}/ci/api/runners/${encodeURIComponent(id)}`),
+    );
   }
 }
 

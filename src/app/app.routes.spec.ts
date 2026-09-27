@@ -5,9 +5,11 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { QITS_CATEGORIES, provideQitsScope } from '@qits/ui-components';
-import { routes } from './app.routes';
+import { UrlSegment } from '@angular/router';
+import { isRepositoryAddress, routes } from './app.routes';
 import { NotFound } from './not-found/not-found';
 import { RunPage } from './run/run-page';
+import { RunnersPage } from './runners/runners-page';
 import { TreePage } from './tree/tree-page';
 
 /**
@@ -107,5 +109,37 @@ describe('routes', () => {
   it('never reads a category as a project', async () => {
     // `/services/…` is a category in segment one, which no project slug can be.
     expect(await activated('/services/qits-ci/runs')).toBe(NotFound);
+  });
+
+  // --- the estate-wide runners page: root only, no scoped forms ---
+
+  it('serves the runners page at the bare root', async () => {
+    expect(await activated('/runners')).toBe(RunnersPage);
+  });
+
+  it('does not serve runners under a project — the address is simply unmatched', async () => {
+    // `own` never carries `runners` into the project's children, so this 404s rather than drawing
+    // a project called `runners` or the runners page scoped to one.
+    expect(await activated('/qits/runners')).toBe(NotFound);
+  });
+
+  it('does not serve runners under a repository either', async () => {
+    expect(await activated('/qits/services/qits-ci/runners')).toBe(NotFound);
+  });
+
+  it('lets the runners page win over the project form for the bare segment', async () => {
+    // Without `runners` in OWN_SEGMENTS, `/runners` would read as a project called `runners`
+    // drawing its tree, exactly the trap `runs/42` is guarded against above.
+    expect(await activated('/runners')).not.toBe(TreePage);
+  });
+
+  /**
+   * The guard itself, directly: `runners` is this application's own first segment exactly the way
+   * `runs` is, so a three-segment address that starts with it must read as none of ours rather than
+   * as a repository named by whatever follows.
+   */
+  it('never reads `runners` as a project segment of a repository address', () => {
+    const segments = [new UrlSegment('runners', {}), new UrlSegment('x', {}), new UrlSegment('y', {})];
+    expect(isRepositoryAddress({} as never, segments)).toBe(false);
   });
 });

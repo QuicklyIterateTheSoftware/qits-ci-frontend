@@ -102,6 +102,19 @@ export function formatElapsed(millis: number): string {
 }
 
 /**
+ * `2m 07s ago`, or `never` for a thing that has not happened at all.
+ *
+ * The runners page is the one caller: a runner's `lastSeenAt` is the one instant on that screen
+ * that keeps moving while the tab is open, and "never" is a real answer for a runner that has
+ * registered but has not yet connected — not a missing value to render as an em dash, which would
+ * read as a loading state that never resolves.
+ */
+export function formatAgo(iso: string | null, nowMs: number): string {
+  const at = parse(iso);
+  return at ? `${formatElapsed(nowMs - at.getTime())} ago` : 'never';
+}
+
+/**
  * A span of time **into the future**, spelled the way a prediction has to be spelled: approximately,
  * and never as a clock time.
  *
@@ -150,6 +163,32 @@ export function formatEta(millis: number): string {
   const halfHours = Math.round(millis / 1_800_000);
   const hours = Math.floor(halfHours / 2);
   return halfHours % 2 === 1 ? `in about ${hours}h 30m` : `in about ${hours}h`;
+}
+
+/**
+ * `4 local slots, 6 runner slots across 3 connected runners` — how much capacity the queue has to
+ * work with, right above the queue itself.
+ *
+ * `runners` is optional and nullable for the one reason every field on this wire is: a qits-ci that
+ * predates runners answers nothing here, and the honest answer for a deployment with none is the
+ * local half alone rather than a claim about zero runners it never made. `slots` is summed over the
+ * **connected** runners only — a registered-but-away runner is not capacity anyone can claim right
+ * now, and counting it would make the number a promise about hardware that is not there.
+ */
+export function formatQueueCapacity(
+  concurrentBuilds: number,
+  runners: readonly { readonly slots: number; readonly connected: boolean }[] | null | undefined,
+): string {
+  const local = `${concurrentBuilds} local slot${concurrentBuilds === 1 ? '' : 's'}`;
+  if (!runners) {
+    return local;
+  }
+  const connected = runners.filter((runner) => runner.connected);
+  const slots = connected.reduce((total, runner) => total + runner.slots, 0);
+  return (
+    `${local}, ${slots} runner slot${slots === 1 ? '' : 's'} across ` +
+    `${connected.length} connected runner${connected.length === 1 ? '' : 's'}`
+  );
 }
 
 /**

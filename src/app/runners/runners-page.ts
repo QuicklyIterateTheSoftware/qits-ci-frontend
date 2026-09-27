@@ -1,0 +1,398 @@
+import { DOCUMENT } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { QitsBadge, QitsButton, type QitsBadgeTone } from '@qits/ui-components';
+import { CiApi } from '../api/ci-api';
+import type { CiRunnerCapabilities, CiRunnerCreated, CiRunnerDto } from '../api/dto';
+import { Async } from '../ui/async';
+import { Empty } from '../ui/empty';
+import { formatAgo } from '../ui/format';
+import { LOADING, describeError, failed, ready, statusOf, type Loadable } from '../ui/loadable';
+import { tickingNow } from '../ui/ticker';
+
+/** How often the runner list is re-read. Ten seconds, the same cadence as the active-runs rail —
+ * a runner connecting or dropping is exactly the kind of thing nobody is staring at the screen for. */
+export const RUNNERS_POLL_INTERVAL_MS = 10_000;
+
+/**
+ * `[a-z][a-z0-9-]{0,63}` — qits-ci's own rule for a runner's name, mirrored here so a bad one is
+ * caught before the round trip rather than after it. The server is still the authority: this is a
+ * courtesy, not a substitute for its own validation.
+ */
+const NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+
+/** Slots a single runner may be given. The server's own ceiling; mirrored for the same reason. */
+const MIN_SLOTS = 1;
+const MAX_SLOTS = 16;
+
+/** What the connectivity badge draws, keyed by the three states a runner can be in. */
+interface Connectivity {
+  readonly label: string;
+  readonly tone: QitsBadgeTone;
+}
+
+/**
+ * The runner's three states, drawn with the same badge vocabulary a run's own status uses —
+ * `running`/green for the case that is actually happening now, `queued`/grey for one that exists
+ * but is not moving, and a plain grey `never started` for one that has never connected at all. A
+ * runner and a run are different entities, but "green means active, grey means not" is the one
+ * piece of that vocabulary worth carrying over rather than inventing a second palette for.
+ */
+function connectivityOf(runner: CiRunnerDto): Connectivity {
+  if (runner.connected) {
+    return { label: 'running', tone: 'success' };
+  }
+  if (runner.registered) {
+    return { label: 'queued', tone: 'neutral' };
+  }
+  return { label: 'never started', tone: 'neutral' };
+}
+
+/** The one-time install-script panel: whose it is, and the script itself. */
+interface InstallPanel {
+  readonly runnerName: string;
+  readonly installScript: string;
+}
+
+/** A runner's editable fields, held as a draft until saved or discarded. */
+interface EditDraft {
+  readonly slots: number;
+  readonly description: string;
+}
+
+/**
+ * The estate-wide runners page: every runner qits-ci knows about, a form to register a new one,
+ * and the one-time install script that registering — or replacing a token — answers.
+ *
+ * <h2>Why this is not scoped</h2>
+ *
+ * A runner is infrastructure the whole platform shares, not something one project or repository
+ * owns — unlike the tree and the run page, which both answer at three spellings of every address,
+ * this page answers at exactly one: `/runners`. See `app.routes.ts`.
+ *
+ * <h2>The install script is shown once</h2>
+ *
+ * `POST /ci/api/runners` and `POST /ci/api/runners/{id}/registration-token` both answer a script
+ * carrying a single-use token, and this page holds it in exactly one signal — {@link panel} — that
+ * exists only while the panel showing it is open. Closing the panel clears the signal; nothing else
+ * on this page ever reads it, and nothing persists it. That is the whole of what "shown once" means
+ * here: not a server-side restriction this client works around, but a client that does not make the
+ * mistake of keeping something the server told it was one-time.
+ */
+@Component({
+  selector: 'app-runners-page',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [Async, Empty, QitsBadge, QitsButton],
+  templateUrl: './runners-page.html',
+  styleUrl: './runners-page.css',
+})
+export class RunnersPage {
+  private readonly api = inject(CiApi);
+  private readonly document = inject(DOCUMENT);
+  private readonly now = tickingNow();
+
+  protected readonly formatAgo = (iso: string | null) => formatAgo(iso, this.now());
+  protected readonly connectivity = connectivityOf;
+  protected readonly minSlots = MIN_SLOTS;
+  protected readonly maxSlots = MAX_SLOTS;
+
+  protected readonly runners = signal<Loadable<readonly CiRunnerDto[]>>(LOADING);
+
+  // --- the create form ---
+
+  protected readonly newName = signal('');
+  protected readonly newDescription = signal('');
+  protected readonly newSlots = signal(1);
+  protected readonly creating = signal(false);
+  protected readonly createError = signal('');
+
+  /** Touched only once a submit was attempted, so an empty field is not an error before anyone typed. */
+  private readonly submitted = signal(false);
+
+  protected readonly nameProblem = computed(() => {
+    if (!this.submitted()) {
+      return '';
+    }
+    const name = this.newName();
+    if (!name) {
+      return 'A name is required.';
+    }
+    return NAME_PATTERN.test(name)
+      ? ''
+      : 'Lowercase letters, digits and hyphens, starting with a letter.';
+  });
+
+  // --- the once-only install-script panel, shared by creation and by a replaced token ---
+
+  protected readonly panel = signal<InstallPanel | null>(null);
+  protected readonly copied = signal(false);
+  private copiedTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // --- per-row state; only one row's menu is open at a time ---
+
+  protected readonly openRow = signal<string | null>(null);
+  protected readonly editing = signal<EditDraft | null>(null);
+  protected readonly saving = signal(false);
+  protected readonly saveError = signal('');
+  protected readonly replacingToken = signal(false);
+  protected readonly confirmingDelete = signal(false);
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal('');
+
+  private pollHandle: ReturnType<typeof setInterval> | null = null;
+  private inFlight = false;
+
+  constructor() {
+    void this.load();
+
+    const onVisibilityChange = () => this.onVisibilityChange();
+    this.document.addEventListener('visibilitychange', onVisibilityChange);
+    inject(DestroyRef).onDestroy(() => {
+      this.document.removeEventListener('visibilitychange', onVisibilityChange);
+      this.stopPolling();
+      if (this.copiedTimeout !== null) {
+        clearTimeout(this.copiedTimeout);
+      }
+    });
+
+    this.sync();
+  }
+
+  protected async load(): Promise<void> {
+    this.runners.set(LOADING);
+    try {
+      this.runners.set(ready(await this.api.runners()));
+    } catch (error) {
+      this.runners.set(failed(error));
+    }
+  }
+
+  private async poll(): Promise<void> {
+    if (this.inFlight) {
+      return;
+    }
+    this.inFlight = true;
+    try {
+      this.runners.set(ready(await this.api.runners()));
+    } catch {
+      // The last known list stays on screen; a poll that missed once is not worth a banner on a
+      // page nobody is watching a build finish from.
+    } finally {
+      this.inFlight = false;
+    }
+  }
+
+  private sync(): void {
+    if (this.document.hidden) {
+      this.stopPolling();
+    } else {
+      this.pollHandle ??= setInterval(() => void this.poll(), RUNNERS_POLL_INTERVAL_MS);
+    }
+  }
+
+  private stopPolling(): void {
+    if (this.pollHandle !== null) {
+      clearInterval(this.pollHandle);
+      this.pollHandle = null;
+    }
+  }
+
+  private onVisibilityChange(): void {
+    if (!this.document.hidden) {
+      void this.poll();
+    }
+    this.sync();
+  }
+
+  /** Chips for whatever a runner announced. A runner that has never connected announces nothing. */
+  protected capabilityChips(capabilities: CiRunnerCapabilities | null): readonly string[] {
+    if (!capabilities) {
+      return [];
+    }
+    const chips: string[] = [];
+    if (capabilities.docker) {
+      chips.push('docker');
+    }
+    if (capabilities.os) {
+      chips.push(capabilities.os);
+    }
+    if (capabilities.arch) {
+      chips.push(capabilities.arch);
+    }
+    if (capabilities.runnerVersion) {
+      chips.push(`v${capabilities.runnerVersion}`);
+    }
+    for (const [key, value] of Object.entries(capabilities.labels ?? {})) {
+      chips.push(`${key}=${value}`);
+    }
+    return chips;
+  }
+
+  // --- creating a runner ---
+
+  protected async createRunner(): Promise<void> {
+    this.submitted.set(true);
+    if (this.nameProblem() || this.newSlots() < MIN_SLOTS || this.newSlots() > MAX_SLOTS) {
+      return;
+    }
+    this.creating.set(true);
+    this.createError.set('');
+    try {
+      const created = await this.api.createRunner({
+        name: this.newName(),
+        description: this.newDescription() || null,
+        slots: this.newSlots(),
+      });
+      this.openInstallPanel(created);
+      this.newName.set('');
+      this.newDescription.set('');
+      this.newSlots.set(1);
+      this.submitted.set(false);
+      await this.load();
+    } catch (error) {
+      this.createError.set(
+        statusOf(error) === 409
+          ? describeError(error)
+          : `Could not register this runner — ${describeError(error)}.`,
+      );
+    } finally {
+      this.creating.set(false);
+    }
+  }
+
+  private openInstallPanel(created: CiRunnerCreated): void {
+    this.panel.set({ runnerName: created.name, installScript: created.installScript });
+    this.copied.set(false);
+  }
+
+  /** Closes the panel and drops the script — nothing on this page holds it anywhere else. */
+  protected closePanel(): void {
+    this.panel.set(null);
+    this.copied.set(false);
+  }
+
+  protected async copyInstallScript(): Promise<void> {
+    const panel = this.panel();
+    if (!panel) {
+      return;
+    }
+    await navigator.clipboard.writeText(panel.installScript);
+    this.copied.set(true);
+    if (this.copiedTimeout !== null) {
+      clearTimeout(this.copiedTimeout);
+    }
+    this.copiedTimeout = setTimeout(() => this.copied.set(false), 2000);
+  }
+
+  // --- the row menu ---
+
+  protected isRowOpen(id: string): boolean {
+    return this.openRow() === id;
+  }
+
+  protected toggleRow(id: string): void {
+    const opening = this.openRow() !== id;
+    this.openRow.set(opening ? id : null);
+    this.editing.set(null);
+    this.saveError.set('');
+    this.confirmingDelete.set(false);
+    this.deleteError.set('');
+  }
+
+  protected startEdit(runner: CiRunnerDto): void {
+    this.editing.set({ slots: runner.slots, description: runner.description ?? '' });
+    this.saveError.set('');
+  }
+
+  protected cancelEdit(): void {
+    this.editing.set(null);
+    this.saveError.set('');
+  }
+
+  protected setEditSlots(slots: number): void {
+    const draft = this.editing();
+    if (draft) {
+      this.editing.set({ ...draft, slots });
+    }
+  }
+
+  protected setEditDescription(description: string): void {
+    const draft = this.editing();
+    if (draft) {
+      this.editing.set({ ...draft, description });
+    }
+  }
+
+  protected async saveEdit(runner: CiRunnerDto): Promise<void> {
+    const draft = this.editing();
+    if (!draft || draft.slots < MIN_SLOTS || draft.slots > MAX_SLOTS) {
+      return;
+    }
+    this.saving.set(true);
+    this.saveError.set('');
+    try {
+      await this.api.patchRunner(runner.id, {
+        slots: draft.slots,
+        description: draft.description || null,
+      });
+      this.editing.set(null);
+      await this.load();
+    } catch (error) {
+      this.saveError.set(`Could not save — ${describeError(error)}.`);
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  protected async replaceToken(runner: CiRunnerDto): Promise<void> {
+    this.replacingToken.set(true);
+    try {
+      this.openInstallPanel(await this.api.replaceRegistrationToken(runner.id));
+      this.openRow.set(null);
+    } catch (error) {
+      this.saveError.set(`Could not replace the registration token — ${describeError(error)}.`);
+    } finally {
+      this.replacingToken.set(false);
+    }
+  }
+
+  /** Why deletion is refused, client-side, before the server is ever asked. Empty means it is offered. */
+  protected deleteBlockedReason(runner: CiRunnerDto): string {
+    if (runner.heldRuns === 0) {
+      return '';
+    }
+    return `This runner holds ${runner.heldRuns} run${runner.heldRuns === 1 ? '' : 's'} right now.`;
+  }
+
+  protected askDelete(): void {
+    this.confirmingDelete.set(true);
+  }
+
+  protected dismissDelete(): void {
+    this.confirmingDelete.set(false);
+  }
+
+  protected async confirmDelete(runner: CiRunnerDto): Promise<void> {
+    this.deleting.set(true);
+    this.deleteError.set('');
+    try {
+      await this.api.deleteRunner(runner.id);
+      this.openRow.set(null);
+      this.confirmingDelete.set(false);
+      await this.load();
+    } catch (error) {
+      // The 409 body is the fact that matters — the runner started holding a run between this
+      // page's last read and the click — and it is rendered rather than folded into a generic
+      // failure sentence.
+      this.deleteError.set(describeError(error));
+    } finally {
+      this.deleting.set(false);
+    }
+  }
+}
