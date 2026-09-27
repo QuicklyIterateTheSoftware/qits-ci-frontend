@@ -122,12 +122,13 @@ describe('ActiveRuns', () => {
   }
 
   /**
-   * One tick's worth of answers. Both listings are asked on every tick, so a spec that answered
-   * only one would leave the other outstanding and `http.verify()` would say so.
+   * One tick's worth of answers. All three reads are asked on every tick, so a spec that answered
+   * fewer would leave the rest outstanding and `http.verify()` would say so.
    */
   function flushActive(active: readonly CiRunDto[], finished: readonly CiRunDto[] = []): void {
     http.expectOne('/ci/api/runs/active').flush({ runs: active });
     flushFinished(finished);
+    flushQueue();
   }
 
   /** The finished listing answers newest-first, exactly as the server does. */
@@ -135,13 +136,29 @@ describe('ActiveRuns', () => {
     http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs });
   }
 
+  /**
+   * The queue read most of this suite does not care about — it answers the bare minimum so the
+   * capacity line and the runner column are simply not drawn, which is what every one of these specs
+   * was written against before either field existed. `queue-capacity.spec.ts`-equivalent coverage of
+   * the line itself lives in the dedicated block near the end of this file.
+   */
+  function flushQueue(concurrentBuilds = 0): void {
+    http
+      .expectOne((request) => request.url === '/ci/api/runs/queue')
+      .flush({ concurrentBuilds, generatedAt: new Date().toISOString(), running: [], queued: [] });
+  }
+
   function text(): string {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
   }
 
-  /** Every run link in document order — the stack sits above the active list, so order is content. */
+  /**
+   * Every run link in document order — the stack sits above the active list, so order is content.
+   * Scoped to `.entry`, the run rows' own class: the heading also carries a link to the runners
+   * page, and it is not a run.
+   */
   function links(): readonly string[] {
-    return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a')).map(
+    return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.entry')).map(
       (anchor) => anchor.getAttribute('href') ?? '',
     );
   }
@@ -488,6 +505,7 @@ describe('ActiveRuns', () => {
     await tick(ACTIVE_POLL_INTERVAL_MS);
     http.expectOne('/ci/api/runs/active').flush(null, { status: 503, statusText: 'Down' });
     flushFinished([]);
+    flushQueue();
     await settle();
 
     expect(text()).toContain('last read failed');
@@ -503,6 +521,7 @@ describe('ActiveRuns', () => {
     mount();
     http.expectOne('/ci/api/runs/active').flush(null, { status: 503, statusText: 'Down' });
     flushFinished([]);
+    flushQueue();
     await settle();
 
     expect(text()).toContain('Could not load the runs in flight — 503');
@@ -548,6 +567,7 @@ describe('ActiveRuns', () => {
     expect(request.request.params.get('limit')).toBe(String(FINISHED_SEED_COUNT));
     request.flush({ runs: [] });
     http.expectOne('/ci/api/runs/active').flush({ runs: [] });
+    flushQueue();
     await settle();
 
     // An empty heading over nothing is noise; the active section already says the platform is idle.
@@ -664,11 +684,100 @@ describe('ActiveRuns', () => {
     http
       .expectOne((call) => call.url === '/ci/api/runs/finished')
       .flush(null, { status: 503, statusText: 'Down' });
+    flushQueue();
     await settle();
 
     // History that did not refresh is not a failure worth a banner: the active list is this
     // column's content and it arrived.
     expect(links()).toEqual(['/runs/f1', '/runs/r1']);
     expect(text()).not.toContain('last read failed');
+  });
+
+  // --- runners: the column on a running row, the heading link, and the capacity line ---
+
+  it('links to the runners page beside the heading', async () => {
+    mount();
+    flushActive([]);
+    await settle();
+
+    const link = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('a'),
+    ).find((anchor) => (anchor.textContent ?? '').trim() === 'Runners');
+    expect(link?.getAttribute('href')).toBe('/runners');
+  });
+
+  it('says which runner is executing a RUNNING row, and says local for the built-in executor', async () => {
+    mount();
+    flushActive([
+      run('r1', { status: 'RUNNING', runnerId: 'run-1', runnerName: 'build-box-1' }),
+      run('r2', { status: 'RUNNING', runnerId: null, runnerName: null }),
+    ]);
+    await settle();
+
+    expect(text()).toContain('on build-box-1');
+    expect(text()).toContain('on local');
+  });
+
+  /** A queued run has not been claimed by anything yet, so there is no runner to say. */
+  it('draws no runner column on a queued row', async () => {
+    mount();
+    flushActive([run('r1', { status: 'QUEUED' })]);
+    await settle();
+
+    expect(text()).not.toContain(' on local');
+  });
+
+  it('draws the capacity line from the queue’s own concurrentBuilds and connected runners', async () => {
+    mount();
+    http.expectOne('/ci/api/runs/active').flush({ runs: [] });
+    http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
+    http.expectOne((request) => request.url === '/ci/api/runs/queue').flush({
+      concurrentBuilds: 4,
+      generatedAt: new Date().toISOString(),
+      running: [],
+      queued: [],
+      runners: [
+        { id: 'a', name: 'runner-a', slots: 2, held: 1, connected: true },
+        { id: 'b', name: 'runner-b', slots: 3, held: 0, connected: false },
+      ],
+    });
+    await settle();
+
+    expect(text()).toContain('4 local slots, 2 runner slots across 1 connected runner');
+  });
+
+  /** A qits-ci too old to answer `runners` at all draws the local half alone, not a gap. */
+  it('draws only the local half of the capacity line when the service answers no runners field', async () => {
+    mount();
+    flushActive([]);
+    await settle();
+
+    expect(text()).toContain('0 local slots');
+    expect(text()).not.toContain('connected runner');
+  });
+
+  it('keeps the last capacity line on screen when a poll’s queue read fails', async () => {
+    useIntervalFakes();
+    mount();
+    http.expectOne('/ci/api/runs/active').flush({ runs: [] });
+    http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
+    http.expectOne((request) => request.url === '/ci/api/runs/queue').flush({
+      concurrentBuilds: 4,
+      generatedAt: new Date().toISOString(),
+      running: [],
+      queued: [],
+    });
+    await settle();
+    expect(text()).toContain('4 local slots');
+
+    await tick(ACTIVE_POLL_INTERVAL_MS);
+    http.expectOne('/ci/api/runs/active').flush({ runs: [] });
+    http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
+    http
+      .expectOne((request) => request.url === '/ci/api/runs/queue')
+      .flush(null, { status: 503, statusText: 'Down' });
+    await settle();
+
+    expect(text()).toContain('4 local slots');
   });
 });

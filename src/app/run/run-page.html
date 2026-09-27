@@ -80,6 +80,15 @@
       <code>{{ run.id }}</code>
     </dd>
 
+    <dt>Executor</dt>
+    <dd>
+      @if (executorRunnerId(); as runnerId) {
+        <a routerLink="/runners">{{ executorLabel() || runnerId }}</a>
+      } @else {
+        local
+      }
+    </dd>
+
     <dt>Trigger</dt>
     <dd>
       {{ run.triggerType }}

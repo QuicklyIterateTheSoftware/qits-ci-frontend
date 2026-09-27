@@ -747,6 +747,47 @@ describe('RunPage', () => {
     expect(phrase()).not.toContain('phase');
   });
 
+  // --- who ran it ---
+
+  /**
+   * The executor line, on a run still going. It is not gated on `RUNNING`, unlike the progress bar
+   * and the cancel button — "who ran this" is a fact about the run and not about work in flight.
+   */
+  it('names the runner that is executing a RUNNING run, linked to the runners page', async () => {
+    await open();
+    expectRun().flush(run({ status: 'RUNNING', runnerId: 'r1', runnerName: 'build-box-1' }));
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('Executor');
+    expect(text()).toContain('build-box-1');
+    const link = Array.from(page().querySelectorAll('a')).find(
+      (anchor) => (anchor.textContent ?? '').trim() === 'build-box-1',
+    );
+    expect(link?.getAttribute('href')).toBe('/runners');
+  });
+
+  /** The same fact stays true once the run is over — it does not stop being who ran it. */
+  it('names the runner on a finished run too', async () => {
+    await open();
+    expectRun().flush(run({ status: 'SUCCESS', runnerId: 'r1', runnerName: 'build-box-1' }));
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('build-box-1');
+  });
+
+  /** No runner id means the built-in local executor — the case every run had before one could register. */
+  it('says local for a run with no runner', async () => {
+    await open();
+    expectRun().flush(run({ runnerId: null, runnerName: null }));
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('local');
+    expect(text()).not.toContain('build-box');
+  });
+
   /**
    * The relay's own timestamp beats this client's first sighting of the step, and the gap between
    * them is not small: a run opened mid-step was measured from *now* and read `0s` beside a step
