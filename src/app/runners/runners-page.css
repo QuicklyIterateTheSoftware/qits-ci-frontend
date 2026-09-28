@@ -83,7 +83,8 @@ h2 {
   color: #6b7280;
 }
 
-.field input {
+.field input,
+.field select {
   font: inherit;
   padding: 0.3rem 0.5rem;
   border: 1px solid #d1d5db;
@@ -99,6 +100,13 @@ h2 {
 .field-error {
   color: #b91c1c;
   font-size: 0.8rem;
+}
+
+.plane-explanation {
+  margin: 0.4rem 0 0;
+  color: #6b7280;
+  font-size: 0.8rem;
+  max-width: 48rem;
 }
 
 .note {
@@ -142,8 +150,14 @@ h2 {
   white-space: nowrap;
 }
 
-.plane {
-  text-transform: lowercase;
+/* Drawn like a capability chip — see `.chip` — rather than sharing its class, so the two stay
+   distinguishable: the plane is always present, capabilities are whatever a runner announced. */
+.chip-plane {
+  font-size: 0.75rem;
+  color: #4b5563;
+  background: #f3f4f6;
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.4rem;
 }
 
 .spring {

@@ -1,4 +1,5 @@
 import { DOCUMENT } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -9,7 +10,12 @@ import {
 } from '@angular/core';
 import { QitsBadge, QitsButton, type QitsBadgeTone } from '@qits/ui-components';
 import { CiApi } from '../api/ci-api';
-import type { CiRunnerCapabilities, CiRunnerCreated, CiRunnerDto } from '../api/dto';
+import type {
+  CiRunnerCapabilities,
+  CiRunnerCreated,
+  CiRunnerDto,
+  CiRunnerPlane,
+} from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
 import { formatAgo } from '../ui/format';
@@ -30,6 +36,48 @@ const NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 /** Slots a single runner may be given. The server's own ceiling; mirrored for the same reason. */
 const MIN_SLOTS = 1;
 const MAX_SLOTS = 16;
+
+/**
+ * The two planes a runner may sit on, in the order they are offered. `EDGE` is first because it is
+ * the default: the owner's ruling is that a runner is ordinarily a remote host reaching the platform
+ * through its public edge, and `INTERNAL` — on the platform host's own qits-net — is the exception.
+ */
+const RUNNER_PLANES: readonly CiRunnerPlane[] = ['EDGE', 'INTERNAL'];
+const DEFAULT_PLANE: CiRunnerPlane = 'EDGE';
+
+/** What each plane means for where a step's requests go, shown once under the choice. */
+const PLANE_EXPLANATIONS: Readonly<Record<CiRunnerPlane, string>> = {
+  EDGE: "EDGE: steps on this runner reach the platform through its public names with a job token; the runner needs no platform network.",
+  INTERNAL: "INTERNAL: steps use the platform's internal aliases; the runner must be on qits-net.",
+};
+
+/** The one sentence shown under a plane choice — both halves, so the reader sees the whole trade-off. */
+const PLANE_EXPLANATION = `${PLANE_EXPLANATIONS.EDGE} ${PLANE_EXPLANATIONS.INTERNAL}`;
+
+/** The friendly sentence this page renders instead of the server's own `EDGE_PLANE_UNCONFIGURED`. */
+const EDGE_PLANE_UNCONFIGURED_MESSAGE =
+  "The platform's public domain is not configured in qits-ci (QITS_DOMAIN).";
+
+/**
+ * The one 400 this page gives its own sentence to. The body is the service's usual `{message: …}`
+ * error envelope — see `describeError` — so the code is looked for in a `code` field, should the
+ * server ever grow one, and in the message text, which is what it answers with today. `null` means
+ * this was not that error, and the caller falls back to the generic rendering.
+ */
+function edgePlaneUnconfiguredMessage(error: unknown): string | null {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 400) {
+    return null;
+  }
+  const body = error.error;
+  if (typeof body !== 'object' || body === null) {
+    return null;
+  }
+  const code = 'code' in body ? (body as { code: unknown }).code : null;
+  const message = 'message' in body ? (body as { message: unknown }).message : null;
+  const marker = 'EDGE_PLANE_UNCONFIGURED';
+  const matches = code === marker || (typeof message === 'string' && message.includes(marker));
+  return matches ? EDGE_PLANE_UNCONFIGURED_MESSAGE : null;
+}
 
 /** What the connectivity badge draws, keyed by the three states a runner can be in. */
 interface Connectivity {
@@ -64,6 +112,7 @@ interface InstallPanel {
 interface EditDraft {
   readonly slots: number;
   readonly description: string;
+  readonly plane: CiRunnerPlane;
 }
 
 /**
@@ -101,6 +150,8 @@ export class RunnersPage {
   protected readonly connectivity = connectivityOf;
   protected readonly minSlots = MIN_SLOTS;
   protected readonly maxSlots = MAX_SLOTS;
+  protected readonly planes = RUNNER_PLANES;
+  protected readonly planeExplanation = PLANE_EXPLANATION;
 
   protected readonly runners = signal<Loadable<readonly CiRunnerDto[]>>(LOADING);
 
@@ -109,6 +160,7 @@ export class RunnersPage {
   protected readonly newName = signal('');
   protected readonly newDescription = signal('');
   protected readonly newSlots = signal(1);
+  protected readonly newPlane = signal<CiRunnerPlane>(DEFAULT_PLANE);
   protected readonly creating = signal(false);
   protected readonly createError = signal('');
 
@@ -248,18 +300,22 @@ export class RunnersPage {
         name: this.newName(),
         description: this.newDescription() || null,
         slots: this.newSlots(),
+        plane: this.newPlane(),
       });
       this.openInstallPanel(created);
       this.newName.set('');
       this.newDescription.set('');
       this.newSlots.set(1);
+      this.newPlane.set(DEFAULT_PLANE);
       this.submitted.set(false);
       await this.load();
     } catch (error) {
+      const planeMessage = edgePlaneUnconfiguredMessage(error);
       this.createError.set(
-        statusOf(error) === 409
-          ? describeError(error)
-          : `Could not register this runner — ${describeError(error)}.`,
+        planeMessage ??
+          (statusOf(error) === 409
+            ? describeError(error)
+            : `Could not register this runner — ${describeError(error)}.`),
       );
     } finally {
       this.creating.set(false);
@@ -306,7 +362,11 @@ export class RunnersPage {
   }
 
   protected startEdit(runner: CiRunnerDto): void {
-    this.editing.set({ slots: runner.slots, description: runner.description ?? '' });
+    this.editing.set({
+      slots: runner.slots,
+      description: runner.description ?? '',
+      plane: runner.plane,
+    });
     this.saveError.set('');
   }
 
@@ -329,6 +389,13 @@ export class RunnersPage {
     }
   }
 
+  protected setEditPlane(plane: CiRunnerPlane): void {
+    const draft = this.editing();
+    if (draft) {
+      this.editing.set({ ...draft, plane });
+    }
+  }
+
   protected async saveEdit(runner: CiRunnerDto): Promise<void> {
     const draft = this.editing();
     if (!draft || draft.slots < MIN_SLOTS || draft.slots > MAX_SLOTS) {
@@ -340,11 +407,13 @@ export class RunnersPage {
       await this.api.patchRunner(runner.id, {
         slots: draft.slots,
         description: draft.description || null,
+        plane: draft.plane,
       });
       this.editing.set(null);
       await this.load();
     } catch (error) {
-      this.saveError.set(`Could not save — ${describeError(error)}.`);
+      const planeMessage = edgePlaneUnconfiguredMessage(error);
+      this.saveError.set(planeMessage ?? `Could not save — ${describeError(error)}.`);
     } finally {
       this.saving.set(false);
     }

@@ -463,17 +463,23 @@ export interface CiRunnerCreated extends CiRunnerDto {
   readonly installScript: string;
 }
 
-/** What `POST /ci/api/runners` takes: the two facts a runner cannot be created without. */
+/**
+ * What `POST /ci/api/runners` takes: `name` and `slots` are the two facts a runner cannot be
+ * created without; `description` and `plane` are optional here — the wire itself defaults an absent
+ * `plane` to `EDGE` — though the runners page always sends its own choice explicitly.
+ */
 export interface CreateRunnerRequest {
   readonly name: string;
   readonly description?: string | null;
   readonly slots: number;
+  readonly plane?: CiRunnerPlane;
 }
 
-/** What `PATCH /ci/api/runners/{id}` takes. Both fields are optional; send only what changed. */
+/** What `PATCH /ci/api/runners/{id}` takes. All three fields are optional; send only what changed. */
 export interface PatchRunnerRequest {
   readonly slots?: number;
   readonly description?: string | null;
+  readonly plane?: CiRunnerPlane;
 }
 
 /**

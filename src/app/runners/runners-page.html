@@ -56,10 +56,19 @@
         (input)="newSlots.set($any($event.target).valueAsNumber)"
       />
     </label>
+    <label class="field">
+      <span>Plane</span>
+      <select [value]="newPlane()" (change)="newPlane.set($any($event.target).value)">
+        @for (plane of planes; track plane) {
+          <option [value]="plane">{{ plane }}</option>
+        }
+      </select>
+    </label>
     <qits-button variant="primary" size="sm" type="submit" [busy]="creating()">
       Register
     </qits-button>
   </form>
+  <p class="plane-explanation">{{ planeExplanation }}</p>
   @if (createError()) {
     <p class="note note-error" role="alert">{{ createError() }}</p>
   }
@@ -86,7 +95,7 @@
               <qits-badge [label]="connectivity(runner).label" [tone]="connectivity(runner).tone" />
               <span class="fact">{{ runner.slots }} slots</span>
               <span class="fact">{{ runner.heldRuns }} held</span>
-              <span class="fact plane">{{ runner.plane }}</span>
+              <span class="chip-plane">{{ runner.plane }}</span>
               <span class="fact seen">seen {{ formatAgo(runner.lastSeenAt) }}</span>
               <span class="spring"></span>
               <button
@@ -135,6 +144,18 @@
                         (input)="setEditDescription($any($event.target).value)"
                       />
                     </label>
+                    <label class="field">
+                      <span>Plane</span>
+                      <select
+                        [value]="draft.plane"
+                        (change)="setEditPlane($any($event.target).value)"
+                      >
+                        @for (plane of planes; track plane) {
+                          <option [value]="plane">{{ plane }}</option>
+                        }
+                      </select>
+                    </label>
+                    <p class="plane-explanation">{{ planeExplanation }}</p>
                     <div class="menu-actions">
                       <qits-button
                         variant="primary"

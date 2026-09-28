@@ -131,6 +131,14 @@ describe('RunnersPage', () => {
     input.dispatchEvent(new Event('input'));
   }
 
+  function setSelectValue(selector: string, value: string): void {
+    const select = (fixture.nativeElement as HTMLElement).querySelector(
+      selector,
+    ) as HTMLSelectElement;
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+  }
+
   it('rejects a name the server rule would also refuse, before any request is made', async () => {
     mount();
     flushRunners([]);
@@ -144,6 +152,90 @@ describe('RunnersPage', () => {
     // No POST was ever sent — http.verify() in afterEach would fail if one had been.
   });
 
+  it('defaults the create form’s plane choice to EDGE', async () => {
+    mount();
+    flushRunners([]);
+    await settle();
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector(
+      '.create select',
+    ) as HTMLSelectElement;
+    expect(select.value).toBe('EDGE');
+    expect(text()).toContain(
+      'EDGE: steps on this runner reach the platform through its public names with a job token',
+    );
+  });
+
+  it('sends the chosen plane, INTERNAL, when it is changed away from the EDGE default', async () => {
+    mount();
+    flushRunners([]);
+    await settle();
+
+    setValue('.create input[type="text"]', 'build-box-internal');
+    setSelectValue('.create select', 'INTERNAL');
+    buttons('Register')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners');
+    expect(request.request.body).toEqual({
+      name: 'build-box-internal',
+      description: null,
+      slots: 1,
+      plane: 'INTERNAL',
+    });
+    request.flush(
+      { ...runner({ id: 'r9', name: 'build-box-internal' }), installScript: 'x' },
+      { status: 201, statusText: 'Created' },
+    );
+    await settle();
+    flushRunners([runner({ id: 'r9', name: 'build-box-internal' })]);
+    await settle();
+  });
+
+  it('renders qits-ci’s EDGE_PLANE_UNCONFIGURED 400 as the domain-not-configured sentence', async () => {
+    mount();
+    flushRunners([]);
+    await settle();
+
+    setValue('.create input[type="text"]', 'build-box-edge');
+    buttons('Register')[0].click();
+    await settle();
+
+    http
+      .expectOne('/ci/api/runners')
+      .flush(
+        { message: 'EDGE_PLANE_UNCONFIGURED' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await settle();
+
+    expect(text()).toContain(
+      "The platform's public domain is not configured in qits-ci (QITS_DOMAIN).",
+    );
+  });
+
+  it('sends the edited plane, alongside slots and description, when a row is saved', async () => {
+    mount();
+    flushRunners([runner({ plane: 'EDGE' })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Edit slots/description')[0].click();
+    await settle();
+    setSelectValue('.edit select', 'INTERNAL');
+    buttons('Save')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners/r1');
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ slots: 2, description: null, plane: 'INTERNAL' });
+    request.flush(runner({ plane: 'INTERNAL' }));
+    await settle();
+    flushRunners([runner({ plane: 'INTERNAL' })]);
+    await settle();
+  });
+
   it('opens the install-script panel on a successful registration, with the two required sentences', async () => {
     mount();
     flushRunners([]);
@@ -155,7 +247,12 @@ describe('RunnersPage', () => {
 
     const request = http.expectOne('/ci/api/runners');
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ name: 'build-box-2', description: null, slots: 1 });
+    expect(request.request.body).toEqual({
+      name: 'build-box-2',
+      description: null,
+      slots: 1,
+      plane: 'EDGE',
+    });
     request.flush(
       { ...runner({ id: 'r2', name: 'build-box-2' }), installScript: '#!/bin/sh\necho hi\n' },
       { status: 201, statusText: 'Created' },
