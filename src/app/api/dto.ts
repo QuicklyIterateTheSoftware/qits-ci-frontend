@@ -446,6 +446,11 @@ export interface CiRunnerDto {
   readonly createdAt: string;
 }
 
+/** The runner list envelope. */
+export interface CiRunnersResponse {
+  readonly runners: readonly CiRunnerDto[];
+}
+
 /**
  * What creating a runner, or replacing its registration token, answers: the runner as it now
  * stands, plus the one-time install script.

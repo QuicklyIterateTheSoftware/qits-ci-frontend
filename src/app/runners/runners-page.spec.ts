@@ -69,7 +69,7 @@ describe('RunnersPage', () => {
   }
 
   function flushRunners(runners: readonly CiRunnerDto[]): void {
-    http.expectOne('/ci/api/runners').flush(runners);
+    http.expectOne('/ci/api/runners').flush({ runners });
   }
 
   it('lists a runner: name, connectivity, slots, held, plane and a relative last-seen', async () => {

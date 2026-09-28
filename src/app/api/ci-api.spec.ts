@@ -131,9 +131,9 @@ describe('CiApi', () => {
     await expect(queue).resolves.toMatchObject({ concurrentBuilds: 4, runners: [{ id: 'r1' }] });
   });
 
-  it('reads every runner, bare', async () => {
+  it('reads every runner and unwraps the envelope', async () => {
     const runners = api.runners();
-    http.expectOne('/ci/api/runners').flush([{ id: 'r1', name: 'runner-1' }]);
+    http.expectOne('/ci/api/runners').flush({ runners: [{ id: 'r1', name: 'runner-1' }] });
     await expect(runners).resolves.toMatchObject([{ id: 'r1', name: 'runner-1' }]);
   });
 

@@ -10,6 +10,7 @@ import type {
   CiRunDto,
   CiRunnerCreated,
   CiRunnerDto,
+  CiRunnersResponse,
   CiRunsResponse,
   CreateRunnerRequest,
   PatchRunnerRequest,
@@ -164,9 +165,12 @@ export class CiApi {
     return firstValueFrom(this.http.get<CiQueueResponse>(`${this.base}/ci/api/runs/queue`));
   }
 
-  /** Every runner qits-ci knows about, whether or not it has ever connected. Bare, not enveloped. */
-  runners(): Promise<readonly CiRunnerDto[]> {
-    return firstValueFrom(this.http.get<readonly CiRunnerDto[]>(`${this.base}/ci/api/runners`));
+  /** Every runner qits-ci knows about, whether or not it has ever connected. Enveloped. */
+  async runners(): Promise<readonly CiRunnerDto[]> {
+    const response = await firstValueFrom(
+      this.http.get<CiRunnersResponse>(`${this.base}/ci/api/runners`),
+    );
+    return response.runners;
   }
 
   /**
