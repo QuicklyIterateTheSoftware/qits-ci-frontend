@@ -424,6 +424,15 @@ export interface CiRunnerCapabilities {
   readonly labels?: Readonly<Record<string, string>> | null;
 }
 
+/** One health check's outcome — the last one qits-ci ran against a runner, whether or not it is queued for another. */
+export interface CiRunnerHealthcheckDto {
+  readonly at: string;
+  readonly result: 'PASSED' | 'FAILED';
+  /** The run this check executed as, so a reader can follow it like any other run. */
+  readonly runId: string;
+  readonly detail: string | null;
+}
+
 /**
  * A runner qits-ci knows about, whether or not it has ever connected.
  *
@@ -431,6 +440,14 @@ export interface CiRunnerCapabilities {
  * registered — an install script was issued for it — and away right now, which is a different
  * picture from one that has never registered at all. `heldRuns` is what a delete has to check
  * client-side before it is offered, since the server answers the same fact with a 409.
+ *
+ * `quarantined`, `quarantineReason`, `quarantinedAt` and `lastHealthcheck` are optional and
+ * absent-tolerant, the same way every field added after the fact on this client is: an older
+ * qits-ci answers nothing here, and a reader with no expectations draws exactly what it drew
+ * before quarantine existed. A quarantined runner takes no new runs — qits-ci forces its slots to
+ * 0 while it is quarantined, though `slots` itself keeps carrying the configured value, not the
+ * effective one. A newly registered runner starts quarantined, with `quarantineReason` null, until
+ * its first health check passes; while quarantined, health checks repeat hourly.
  */
 export interface CiRunnerDto {
   readonly id: string;
@@ -444,6 +461,10 @@ export interface CiRunnerDto {
   readonly heldRuns: number;
   readonly lastSeenAt: string | null;
   readonly createdAt: string;
+  readonly quarantined?: boolean;
+  readonly quarantineReason?: string | null;
+  readonly quarantinedAt?: string | null;
+  readonly lastHealthcheck?: CiRunnerHealthcheckDto | null;
 }
 
 /** The runner list envelope. */
