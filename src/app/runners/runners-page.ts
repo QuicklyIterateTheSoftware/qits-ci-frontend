@@ -8,17 +8,19 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { QitsBadge, QitsButton, type QitsBadgeTone } from '@qits/ui-components';
 import { CiApi } from '../api/ci-api';
 import type {
   CiRunnerCapabilities,
   CiRunnerCreated,
   CiRunnerDto,
+  CiRunnerHealthcheckDto,
   CiRunnerPlane,
 } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
-import { formatAgo } from '../ui/format';
+import { NONE, formatAgo } from '../ui/format';
 import { LOADING, describeError, failed, ready, statusOf, type Loadable } from '../ui/loadable';
 import { tickingNow } from '../ui/ticker';
 
@@ -109,6 +111,34 @@ function connectivityOf(runner: CiRunnerDto): Connectivity {
   return { label: 'never started', tone: 'neutral' };
 }
 
+/** The sentence shown for a quarantined runner with no reason of its own — a newly registered one. */
+const AWAITING_FIRST_HEALTHCHECK = 'awaiting its first health check';
+
+/** The reason shown on a quarantined runner's badge: its own, or the newly-registered default. */
+function quarantineReasonOf(runner: CiRunnerDto): string {
+  return runner.quarantineReason ?? AWAITING_FIRST_HEALTHCHECK;
+}
+
+/** What the last-health-check cell draws, keyed by the check's own result. */
+interface HealthcheckDisplay {
+  readonly label: string;
+  readonly tone: QitsBadgeTone;
+  readonly at: string;
+  readonly runId: string;
+  readonly detail: string | null;
+}
+
+/**
+ * The last health check's badge, drawn `passed`/success or `failed`/danger — the run it executed
+ * as is what the cell links to, so an operator reading "failed" can go straight to why.
+ */
+function healthcheckDisplay(healthcheck: CiRunnerHealthcheckDto): HealthcheckDisplay {
+  const { at, runId, detail } = healthcheck;
+  return healthcheck.result === 'PASSED'
+    ? { label: 'passed', tone: 'success', at, runId, detail }
+    : { label: 'failed', tone: 'danger', at, runId, detail };
+}
+
 /** The one-time install-script panel: whose it is, and the script itself. */
 interface InstallPanel {
   readonly runnerName: string;
@@ -144,7 +174,7 @@ interface EditDraft {
 @Component({
   selector: 'app-runners-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, Empty, QitsBadge, QitsButton],
+  imports: [Async, Empty, QitsBadge, QitsButton, RouterLink],
   templateUrl: './runners-page.html',
   styleUrl: './runners-page.css',
 })
@@ -155,6 +185,8 @@ export class RunnersPage {
 
   protected readonly formatAgo = (iso: string | null) => formatAgo(iso, this.now());
   protected readonly connectivity = connectivityOf;
+  protected readonly quarantineReason = quarantineReasonOf;
+  protected readonly none = NONE;
   protected readonly minSlots = MIN_SLOTS;
   protected readonly maxSlots = MAX_SLOTS;
   protected readonly minEditSlots = MIN_EDIT_SLOTS;
@@ -228,6 +260,23 @@ export class RunnersPage {
   protected readonly deleting = signal(false);
   protected readonly deleteError = signal('');
 
+  // --- greenlighting a quarantined runner, and running a health check on demand ---
+
+  protected readonly greenlighting = signal(false);
+  protected readonly greenlightError = signal('');
+  protected readonly healthcheckError = signal('');
+
+  /**
+   * Runner ids with a health check this page itself just queued, mapped to the `lastHealthcheck.at`
+   * seen at the moment it was queued — `null` when there was none yet. A row's "Run health check"
+   * button stays disabled for exactly as long as its entry survives here.
+   *
+   * Cleared by comparing against the freshest read rather than by a timer: the button re-enabling
+   * means "a newer check landed", and the poll already under way is what answers that, not a clock
+   * this page would otherwise have to guess a duration for.
+   */
+  protected readonly healthchecking = signal<ReadonlyMap<string, string | null>>(new Map());
+
   private pollHandle: ReturnType<typeof setInterval> | null = null;
   private inFlight = false;
 
@@ -250,7 +299,9 @@ export class RunnersPage {
   protected async load(): Promise<void> {
     this.runners.set(LOADING);
     try {
-      this.runners.set(ready(await this.api.runners()));
+      const runners = await this.api.runners();
+      this.runners.set(ready(runners));
+      this.reconcileHealthchecking(runners);
     } catch (error) {
       this.runners.set(failed(error));
     }
@@ -262,12 +313,36 @@ export class RunnersPage {
     }
     this.inFlight = true;
     try {
-      this.runners.set(ready(await this.api.runners()));
+      const runners = await this.api.runners();
+      this.runners.set(ready(runners));
+      this.reconcileHealthchecking(runners);
     } catch {
       // The last known list stays on screen; a poll that missed once is not worth a banner on a
       // page nobody is watching a build finish from.
     } finally {
       this.inFlight = false;
+    }
+  }
+
+  /** Drops a row's pending health-check flag once a fresher `lastHealthcheck` than the one seen at click time lands, or once the runner is gone. */
+  private reconcileHealthchecking(runners: readonly CiRunnerDto[]): void {
+    const pending = this.healthchecking();
+    if (pending.size === 0) {
+      return;
+    }
+    const byId = new Map(runners.map((runner) => [runner.id, runner] as const));
+    const next = new Map(pending);
+    let changed = false;
+    for (const [id, seenAt] of pending) {
+      const runner = byId.get(id);
+      const currentAt = runner?.lastHealthcheck?.at ?? null;
+      if (!runner || currentAt !== seenAt) {
+        next.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.healthchecking.set(next);
     }
   }
 
@@ -390,6 +465,8 @@ export class RunnersPage {
     this.saveError.set('');
     this.confirmingDelete.set(false);
     this.deleteError.set('');
+    this.greenlightError.set('');
+    this.healthcheckError.set('');
   }
 
   protected startEdit(runner: CiRunnerDto): void {
@@ -496,6 +573,57 @@ export class RunnersPage {
       this.deleteError.set(describeError(error));
     } finally {
       this.deleting.set(false);
+    }
+  }
+
+  // --- quarantine: the badge and the "since", and the two actions the row menu offers ---
+
+  /** Slots as the row shows them: the configured ceiling normally, `0 (of N)` while quarantined. */
+  protected slotsDisplay(runner: CiRunnerDto): string {
+    return runner.quarantined ? `0 (of ${runner.slots})` : `${runner.slots} slots`;
+  }
+
+  /** What the last-health-check cell draws, or `null` for a runner with no check on record yet. */
+  protected healthcheck(runner: CiRunnerDto): HealthcheckDisplay | null {
+    return runner.lastHealthcheck ? healthcheckDisplay(runner.lastHealthcheck) : null;
+  }
+
+  protected isHealthchecking(runner: CiRunnerDto): boolean {
+    return this.healthchecking().has(runner.id);
+  }
+
+  /** Confirm-less: a runner already stuck in quarantine is the thing being fixed, not risked. */
+  protected async greenlightRunner(runner: CiRunnerDto): Promise<void> {
+    this.greenlighting.set(true);
+    this.greenlightError.set('');
+    try {
+      await this.api.greenlightRunner(runner.id);
+      await this.load();
+    } catch (error) {
+      this.greenlightError.set(`Could not greenlight this runner — ${describeError(error)}.`);
+    } finally {
+      this.greenlighting.set(false);
+    }
+  }
+
+  protected async runHealthcheck(runner: CiRunnerDto): Promise<void> {
+    if (this.isHealthchecking(runner)) {
+      return;
+    }
+    this.healthcheckError.set('');
+    this.healthchecking.update((map) => new Map(map).set(runner.id, runner.lastHealthcheck?.at ?? null));
+    try {
+      await this.api.runRunnerHealthcheck(runner.id);
+      await this.load();
+    } catch (error) {
+      // A 409 means one is already queued or running for this runner — that fact, not a generic
+      // failure, and the button re-enables since nothing new was queued by this click.
+      this.healthcheckError.set(`Could not run a health check — ${describeError(error)}.`);
+      this.healthchecking.update((map) => {
+        const next = new Map(map);
+        next.delete(runner.id);
+        return next;
+      });
     }
   }
 }

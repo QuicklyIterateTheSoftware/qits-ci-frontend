@@ -215,9 +215,44 @@ export class CiApi {
       this.http.delete(`${this.base}/ci/api/runners/${encodeURIComponent(id)}`),
     );
   }
+
+  /**
+   * Force a quarantined runner out of quarantine immediately, ahead of its next scheduled check.
+   * Admin-only. The server answers either the updated runner or a bare 204 — Angular's `HttpClient`
+   * parses an empty JSON body as `null`, so both shapes come back through the same return type with
+   * no branching needed here.
+   */
+  greenlightRunner(id: string): Promise<CiRunnerDto | null> {
+    return firstValueFrom(
+      this.http.post<CiRunnerDto | null>(
+        `${this.base}/ci/api/runners/${encodeURIComponent(id)}/greenlight`,
+        null,
+      ),
+    );
+  }
+
+  /**
+   * Queue a health check on demand, rather than waiting for the hourly cadence a quarantined
+   * runner already gets. Answers the queued run's id; a check already queued or running for this
+   * runner answers 409, whose message the caller renders rather than a generic failure.
+   */
+  async runRunnerHealthcheck(id: string): Promise<string> {
+    const response = await firstValueFrom(
+      this.http.post<RunnerHealthcheckResponse>(
+        `${this.base}/ci/api/runners/${encodeURIComponent(id)}/healthcheck`,
+        null,
+      ),
+    );
+    return response.runId;
+  }
 }
 
 /** What a retry answers: the id of the run it queued. */
 interface RetryRunResponse {
+  readonly runId: string;
+}
+
+/** What an on-demand health check answers: the id of the run it queued. */
+interface RunnerHealthcheckResponse {
   readonly runId: string;
 }

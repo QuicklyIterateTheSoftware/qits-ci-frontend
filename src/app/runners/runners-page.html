@@ -103,10 +103,22 @@
             <div class="row">
               <span class="name">{{ runner.name }}</span>
               <qits-badge [label]="connectivity(runner).label" [tone]="connectivity(runner).tone" />
-              <span class="fact">{{ runner.slots }} slots</span>
+              @if (runner.quarantined) {
+                <qits-badge label="quarantined" tone="warning" [attr.title]="quarantineReason(runner)" />
+                <span class="fact quarantine-since">since {{ formatAgo(runner.quarantinedAt ?? null) }}</span>
+              }
+              <span class="fact">{{ slotsDisplay(runner) }}</span>
               <span class="fact">{{ runner.heldRuns }} held</span>
               <span class="chip-plane">{{ runner.plane }}</span>
               <span class="fact seen">seen {{ formatAgo(runner.lastSeenAt) }}</span>
+              @if (healthcheck(runner); as hc) {
+                <span class="healthcheck">
+                  <qits-badge [label]="hc.label" [tone]="hc.tone" [attr.title]="hc.detail" />
+                  <a [routerLink]="'/runs/' + hc.runId">{{ formatAgo(hc.at) }}</a>
+                </span>
+              } @else {
+                <span class="fact healthcheck-none">{{ none }}</span>
+              }
               <span class="spring"></span>
               <button
                 type="button"
@@ -199,6 +211,25 @@
                     >
                       Replace registration token
                     </qits-button>
+                    @if (runner.quarantined) {
+                      <qits-button
+                        variant="secondary"
+                        size="sm"
+                        [busy]="greenlighting()"
+                        (pressed)="greenlightRunner(runner)"
+                      >
+                        Greenlight
+                      </qits-button>
+                    }
+                    <qits-button
+                      variant="secondary"
+                      size="sm"
+                      [disabled]="isHealthchecking(runner)"
+                      [busy]="isHealthchecking(runner)"
+                      (pressed)="runHealthcheck(runner)"
+                    >
+                      Run health check
+                    </qits-button>
                     @if (deleteBlockedReason(runner); as reason) {
                       <qits-button variant="secondary" size="sm" [disabled]="true">
                         Delete
@@ -229,6 +260,12 @@
                 }
                 @if (deleteError()) {
                   <p class="note note-error" role="alert">{{ deleteError() }}</p>
+                }
+                @if (greenlightError()) {
+                  <p class="note note-error" role="alert">{{ greenlightError() }}</p>
+                }
+                @if (healthcheckError()) {
+                  <p class="note note-error" role="alert">{{ healthcheckError() }}</p>
                 }
               </div>
             }

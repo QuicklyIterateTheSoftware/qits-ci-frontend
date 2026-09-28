@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import type { CiRunnerDto } from '../api/dto';
 import { RunnersPage } from './runners-page';
 
@@ -33,7 +34,7 @@ describe('RunnersPage', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
     http = TestBed.inject(HttpTestingController);
   });
@@ -433,5 +434,227 @@ describe('RunnersPage', () => {
     await settle();
 
     expect(text()).toContain('No runners are registered yet.');
+  });
+
+  // --- quarantine and health checks ---
+
+  it('tolerates a runner with none of the quarantine/health-check fields — an older qits-ci', async () => {
+    mount();
+    flushRunners([runner()]);
+    await settle();
+
+    expect(text()).not.toContain('quarantined');
+    expect(text()).toContain('2 slots');
+    // The health-check cell falls back to the em dash.
+    const facts = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.healthcheck-none'),
+    ).map((el) => el.textContent?.trim());
+    expect(facts).toEqual(['—']);
+  });
+
+  it('shows a quarantined runner: warning badge with the reason as its title, "since …", and slots as 0 (of N)', async () => {
+    mount();
+    flushRunners([
+      runner({
+        quarantined: true,
+        quarantineReason: 'two health checks failed in a row',
+        quarantinedAt: new Date(Date.now() - 5_000).toISOString(),
+        slots: 3,
+      }),
+    ]);
+    await settle();
+
+    const badge = (fixture.nativeElement as HTMLElement).querySelector(
+      'qits-badge[title="two health checks failed in a row"]',
+    );
+    expect(badge).toBeTruthy();
+    expect(badge?.querySelector('.qits-badge-warning')?.textContent?.trim()).toBe('quarantined');
+    expect(text()).toContain('since 5s ago');
+    expect(text()).toContain('0 (of 3)');
+    expect(text()).not.toContain('3 slots');
+  });
+
+  it('gives a new, never-checked runner the "awaiting its first health check" reason', async () => {
+    mount();
+    flushRunners([runner({ quarantined: true, quarantineReason: null, quarantinedAt: null })]);
+    await settle();
+
+    const badge = (fixture.nativeElement as HTMLElement).querySelector(
+      'qits-badge[title="awaiting its first health check"]',
+    );
+    expect(badge).toBeTruthy();
+  });
+
+  it('draws the last health check: passed in success tone, linking to its run, with the detail as its title', async () => {
+    mount();
+    flushRunners([
+      runner({
+        lastHealthcheck: {
+          at: new Date(Date.now() - 5_000).toISOString(),
+          result: 'PASSED',
+          runId: 'run-42',
+          detail: 'all good',
+        },
+      }),
+    ]);
+    await settle();
+
+    const badge = (fixture.nativeElement as HTMLElement).querySelector(
+      'qits-badge[title="all good"]',
+    );
+    expect(badge?.querySelector('.qits-badge-success')?.textContent?.trim()).toBe('passed');
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      '.healthcheck a',
+    ) as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/runs/run-42');
+    expect(link.textContent).toContain('5s ago');
+  });
+
+  it('draws a failed last health check in danger tone', async () => {
+    mount();
+    flushRunners([
+      runner({
+        lastHealthcheck: {
+          at: new Date(Date.now() - 5_000).toISOString(),
+          result: 'FAILED',
+          runId: 'run-43',
+          detail: null,
+        },
+      }),
+    ]);
+    await settle();
+
+    const failedBadge = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.qits-badge-danger'),
+    ).find((el) => el.textContent?.trim() === 'failed');
+    expect(failedBadge).toBeTruthy();
+  });
+
+  it('greenlights a quarantined runner, confirm-less, and refreshes the list', async () => {
+    mount();
+    flushRunners([runner({ quarantined: true, quarantineReason: 'x' })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    expect(buttons('Greenlight').length).toBe(1);
+    buttons('Greenlight')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners/r1/greenlight');
+    expect(request.request.method).toBe('POST');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await settle();
+    flushRunners([runner({ quarantined: false })]);
+    await settle();
+
+    expect(text()).not.toContain('quarantined');
+  });
+
+  it('offers no Greenlight button on a runner that is not quarantined', async () => {
+    mount();
+    flushRunners([runner()]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+
+    expect(buttons('Greenlight').length).toBe(0);
+  });
+
+  it('renders a 409 the greenlight door answers, verbatim', async () => {
+    mount();
+    flushRunners([runner({ quarantined: true, quarantineReason: 'x' })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Greenlight')[0].click();
+    await settle();
+
+    http
+      .expectOne('/ci/api/runners/r1/greenlight')
+      .flush({ message: 'already greenlit' }, { status: 409, statusText: 'Conflict' });
+    await settle();
+
+    expect(text()).toContain('409 already greenlit');
+  });
+
+  it('runs a health check on demand and disables the button until a fresher check is read back', async () => {
+    mount();
+    flushRunners([runner()]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    const button = buttons('Run health check')[0];
+    expect(button.disabled).toBe(false);
+    button.click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners/r1/healthcheck');
+    expect(request.request.method).toBe('POST');
+    request.flush({ runId: 'run-99' }, { status: 202, statusText: 'Accepted' });
+    await settle();
+    // The follow-up load() this triggers, with no fresher lastHealthcheck yet.
+    flushRunners([runner()]);
+    await settle();
+
+    expect(buttons('Run health check')[0].disabled).toBe(true);
+  });
+
+  it('re-enables the health-check button once a newer lastHealthcheck.at is read back', async () => {
+    mount();
+    flushRunners([runner()]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Run health check')[0].click();
+    await settle();
+    http
+      .expectOne('/ci/api/runners/r1/healthcheck')
+      .flush({ runId: 'run-99' }, { status: 202, statusText: 'Accepted' });
+    await settle();
+    flushRunners([runner()]);
+    await settle();
+    expect(buttons('Run health check')[0].disabled).toBe(true);
+
+    // Simulate the next poll landing a fresher check by calling the page's own `load()` again —
+    // reachable here as `protected`, the same way the page's poll would refresh the list.
+    const reload = (fixture.componentInstance as unknown as { load(): Promise<void> }).load();
+    flushRunners([
+      runner({
+        lastHealthcheck: {
+          at: new Date().toISOString(),
+          result: 'PASSED',
+          runId: 'run-99',
+          detail: null,
+        },
+      }),
+    ]);
+    await reload;
+    await settle();
+
+    expect(buttons('Run health check')[0].disabled).toBe(false);
+  });
+
+  it('renders a 409 the on-demand health check answers, verbatim, and re-enables the button', async () => {
+    mount();
+    flushRunners([runner()]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Run health check')[0].click();
+    await settle();
+
+    http
+      .expectOne('/ci/api/runners/r1/healthcheck')
+      .flush({ message: 'a check is already running' }, { status: 409, statusText: 'Conflict' });
+    await settle();
+
+    expect(text()).toContain('409 a check is already running');
+    expect(buttons('Run health check')[0].disabled).toBe(false);
   });
 });
