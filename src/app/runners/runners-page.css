@@ -102,6 +102,11 @@ h2 {
   font-size: 0.8rem;
 }
 
+.field-hint {
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
 .plane-explanation {
   margin: 0.4rem 0 0;
   color: #6b7280;

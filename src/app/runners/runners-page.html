@@ -25,7 +25,14 @@
 
 <section class="create">
   <h2>Register a runner</h2>
-  <form (submit)="$event.preventDefault(); createRunner()">
+  <!--
+    novalidate: without it, the browser's own constraint validation — triggered by the slots
+    field's min/max attributes — silently cancels the submit event before createRunner() ever
+    runs, so nothing shows and nothing is sent. This page reports the same problem itself, in
+    slotsProblem, so its own message is what the person sees rather than a native tooltip (or,
+    once the value clears the HTML attribute but not the rule, nothing at all).
+  -->
+  <form novalidate (submit)="$event.preventDefault(); createRunner()">
     <label class="field">
       <span>Name</span>
       <input
@@ -55,6 +62,9 @@
         [value]="newSlots()"
         (input)="newSlots.set($any($event.target).valueAsNumber)"
       />
+      @if (slotsProblem()) {
+        <span class="field-error" role="alert">{{ slotsProblem() }}</span>
+      }
     </label>
     <label class="field">
       <span>Plane</span>
@@ -130,11 +140,17 @@
                       <span>Slots</span>
                       <input
                         type="number"
-                        [min]="minSlots"
+                        [min]="minEditSlots"
                         [max]="maxSlots"
                         [value]="draft.slots"
                         (input)="setEditSlots($any($event.target).valueAsNumber)"
                       />
+                      <span class="field-hint">
+                        0 = take no new runs (the runner stays connected).
+                      </span>
+                      @if (editSlotsProblem()) {
+                        <span class="field-error" role="alert">{{ editSlotsProblem() }}</span>
+                      }
                     </label>
                     <label class="field">
                       <span>Description</span>

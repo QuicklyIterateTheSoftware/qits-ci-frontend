@@ -33,9 +33,16 @@ export const RUNNERS_POLL_INTERVAL_MS = 10_000;
  */
 const NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 
-/** Slots a single runner may be given. The server's own ceiling; mirrored for the same reason. */
+/** Slots a single runner may be given on creation. The server's own ceiling; mirrored for the same reason. */
 const MIN_SLOTS = 1;
 const MAX_SLOTS = 16;
+
+/**
+ * Slots an *existing* runner may be edited down to. Unlike creation, the server allows 0 on a
+ * PATCH: the runner stays connected and registered, it just takes no new runs. Editing therefore
+ * has its own, wider floor rather than reusing {@link MIN_SLOTS}.
+ */
+const MIN_EDIT_SLOTS = 0;
 
 /**
  * The two planes a runner may sit on, in the order they are offered. `EDGE` is first because it is
@@ -150,6 +157,7 @@ export class RunnersPage {
   protected readonly connectivity = connectivityOf;
   protected readonly minSlots = MIN_SLOTS;
   protected readonly maxSlots = MAX_SLOTS;
+  protected readonly minEditSlots = MIN_EDIT_SLOTS;
   protected readonly planes = RUNNER_PLANES;
   protected readonly planeExplanation = PLANE_EXPLANATION;
 
@@ -180,6 +188,16 @@ export class RunnersPage {
       : 'Lowercase letters, digits and hyphens, starting with a letter.';
   });
 
+  protected readonly slotsProblem = computed(() => {
+    if (!this.submitted()) {
+      return '';
+    }
+    const slots = this.newSlots();
+    return slots >= MIN_SLOTS && slots <= MAX_SLOTS
+      ? ''
+      : `Slots must be between ${MIN_SLOTS} and ${MAX_SLOTS}.`;
+  });
+
   // --- the once-only install-script panel, shared by creation and by a replaced token ---
 
   protected readonly panel = signal<InstallPanel | null>(null);
@@ -192,6 +210,19 @@ export class RunnersPage {
   protected readonly editing = signal<EditDraft | null>(null);
   protected readonly saving = signal(false);
   protected readonly saveError = signal('');
+
+  /** Touched only once a save was attempted, so the field is not flagged before anyone typed. */
+  private readonly editSubmitted = signal(false);
+
+  protected readonly editSlotsProblem = computed(() => {
+    const draft = this.editing();
+    if (!draft || !this.editSubmitted()) {
+      return '';
+    }
+    return draft.slots >= MIN_EDIT_SLOTS && draft.slots <= MAX_SLOTS
+      ? ''
+      : `Slots must be between ${MIN_EDIT_SLOTS} and ${MAX_SLOTS}.`;
+  });
   protected readonly replacingToken = signal(false);
   protected readonly confirmingDelete = signal(false);
   protected readonly deleting = signal(false);
@@ -290,7 +321,7 @@ export class RunnersPage {
 
   protected async createRunner(): Promise<void> {
     this.submitted.set(true);
-    if (this.nameProblem() || this.newSlots() < MIN_SLOTS || this.newSlots() > MAX_SLOTS) {
+    if (this.nameProblem() || this.slotsProblem()) {
       return;
     }
     this.creating.set(true);
@@ -368,11 +399,13 @@ export class RunnersPage {
       plane: runner.plane,
     });
     this.saveError.set('');
+    this.editSubmitted.set(false);
   }
 
   protected cancelEdit(): void {
     this.editing.set(null);
     this.saveError.set('');
+    this.editSubmitted.set(false);
   }
 
   protected setEditSlots(slots: number): void {
@@ -397,8 +430,9 @@ export class RunnersPage {
   }
 
   protected async saveEdit(runner: CiRunnerDto): Promise<void> {
+    this.editSubmitted.set(true);
     const draft = this.editing();
-    if (!draft || draft.slots < MIN_SLOTS || draft.slots > MAX_SLOTS) {
+    if (!draft || draft.slots < MIN_EDIT_SLOTS || draft.slots > MAX_SLOTS) {
       return;
     }
     this.saving.set(true);

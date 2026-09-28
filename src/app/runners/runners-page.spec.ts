@@ -236,6 +236,59 @@ describe('RunnersPage', () => {
     await settle();
   });
 
+  it('sends slots: 0 on save — 0 disables a runner without dropping its connection', async () => {
+    mount();
+    flushRunners([runner({ slots: 2 })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Edit slots/description')[0].click();
+    await settle();
+    setValue('.edit input[type="number"]', '0');
+    buttons('Save')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners/r1');
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ slots: 0, description: null, plane: 'INTERNAL' });
+    request.flush(runner({ slots: 0 }));
+    await settle();
+    flushRunners([runner({ slots: 0 })]);
+    await settle();
+  });
+
+  it('refuses an out-of-range edit slots value, says why, and sends nothing', async () => {
+    mount();
+    flushRunners([runner({ slots: 2 })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Edit slots/description')[0].click();
+    await settle();
+    setValue('.edit input[type="number"]', '17');
+    buttons('Save')[0].click();
+    await settle();
+
+    expect(text()).toContain('Slots must be between 0 and 16.');
+    // No PATCH was ever sent — http.verify() in afterEach would fail if one had been.
+  });
+
+  it('still refuses 0 on create, and says why', async () => {
+    mount();
+    flushRunners([]);
+    await settle();
+
+    setValue('.create input[type="text"]', 'build-box-zero');
+    setValue('.create input[type="number"]', '0');
+    buttons('Register')[0].click();
+    await settle();
+
+    expect(text()).toContain('Slots must be between 1 and 16.');
+    // No POST was ever sent — http.verify() in afterEach would fail if one had been.
+  });
+
   it('opens the install-script panel on a successful registration, with the two required sentences', async () => {
     mount();
     flushRunners([]);
