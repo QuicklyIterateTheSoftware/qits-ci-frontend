@@ -204,8 +204,9 @@ export class RunPage {
    * a reader in opposite directions. A phase this build has not been taught is printed verbatim.
    */
   /**
-   * Who ran this: a runner's name, or `null` for the built-in local executor every qits-ci
-   * deployment already had before a runner could register.
+   * Who ran this: a runner's name, or `null` for a run recorded before runners existed, held by the
+   * built-in executor every qits-ci deployment already had before a runner could register — drawn
+   * as "unassigned".
    *
    * Shown for a `RUNNING` run and a finished one alike — unlike the progress bar and the cancel
    * button, which are about work still in flight, "who ran this" is a fact about the run itself and

@@ -176,8 +176,8 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
                   <span class="age">{{ age(run) }}</span>
                 </span>
                 <!-- Which runner is holding this row, once it has actually started: a queued run
-                     has no runner yet, so this is drawn only for RUNNING. "local" is the built-in
-                     executor every qits-ci deployment already had before a runner could register. -->
+                     has no runner yet, so this is drawn only for RUNNING. "unassigned" is a run
+                     recorded before runners existed, held by the built-in executor instead. -->
                 @if (run.status === 'RUNNING') {
                   <span class="line runner">on {{ runnerLabel(run) }}</span>
                 }
@@ -472,7 +472,7 @@ export class ActiveRuns {
     queue: CiQueueResponse | null,
   ): void {
     if (queue !== null) {
-      this.capacity.set(formatQueueCapacity(queue.concurrentBuilds, queue.runners));
+      this.capacity.set(formatQueueCapacity(queue.runners));
     }
     const before = this.seen;
     this.state.set(ready(active));
@@ -645,12 +645,12 @@ export class ActiveRuns {
   }
 
   /**
-   * Which runner is executing this row — its name, or `local` for the built-in executor every
-   * qits-ci deployment already had before a runner could register. Only meaningful once a run has
-   * actually started, which is why the template draws it for `RUNNING` alone: a queued run has not
-   * been claimed by anything yet.
+   * Which runner is executing this row — its name, or `unassigned` for a run recorded before
+   * runners existed, when a run was held by the built-in executor rather than a runner. Only
+   * meaningful once a run has actually started, which is why the template draws it for `RUNNING`
+   * alone: a queued run has not been claimed by anything yet.
    */
   protected runnerLabel(run: CiRunDto): string {
-    return run.runnerName ?? run.runnerId ?? 'local';
+    return run.runnerName ?? run.runnerId ?? 'unassigned';
   }
 }

@@ -88,7 +88,6 @@ describe('TreePage in scope', () => {
     http.expectOne('/ci/api/runs/active').flush({ runs: [] });
     http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
     http.expectOne((request) => request.url === '/ci/api/runs/queue').flush({
-      concurrentBuilds: 0,
       generatedAt: new Date().toISOString(),
       running: [],
       queued: [],

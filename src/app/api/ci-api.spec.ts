@@ -119,16 +119,16 @@ describe('CiApi', () => {
     await expect(run).rejects.toBeInstanceOf(HttpErrorResponse);
   });
 
+  /** `concurrentBuilds` is no longer read; a server that has already dropped it decodes fine without it. */
   it('reads the queue bare, not enveloped', async () => {
     const queue = api.queue();
     http.expectOne('/ci/api/runs/queue').flush({
-      concurrentBuilds: 4,
       generatedAt: '2026-07-31T12:00:00Z',
       running: [],
       queued: [],
       runners: [{ id: 'r1', name: 'runner-1', slots: 2, held: 1, connected: true }],
     });
-    await expect(queue).resolves.toMatchObject({ concurrentBuilds: 4, runners: [{ id: 'r1' }] });
+    await expect(queue).resolves.toMatchObject({ runners: [{ id: 'r1' }] });
   });
 
   it('reads every runner and unwraps the envelope', async () => {

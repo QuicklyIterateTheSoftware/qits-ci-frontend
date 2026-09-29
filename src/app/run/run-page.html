@@ -85,7 +85,7 @@
       @if (executorRunnerId(); as runnerId) {
         <a routerLink="/runners">{{ executorLabel() || runnerId }}</a>
       } @else {
-        local
+        unassigned
       }
     </dd>
 

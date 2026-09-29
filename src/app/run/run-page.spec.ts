@@ -777,14 +777,14 @@ describe('RunPage', () => {
     expect(text()).toContain('build-box-1');
   });
 
-  /** No runner id means the built-in local executor — the case every run had before one could register. */
-  it('says local for a run with no runner', async () => {
+  /** No runner id means a run recorded before runners existed — held by the built-in executor. */
+  it('says unassigned for a run with no runner', async () => {
     await open();
     expectRun().flush(run({ runnerId: null, runnerName: null }));
     await settle();
     await flushAttribution();
 
-    expect(text()).toContain('local');
+    expect(text()).toContain('unassigned');
     expect(text()).not.toContain('build-box');
   });
 

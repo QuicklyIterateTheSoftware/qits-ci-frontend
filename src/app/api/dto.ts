@@ -305,7 +305,7 @@ export interface CiRunDto {
    *
    * Optional and nullable, and both say the same thing every other field added after the fact does:
    * a qits-ci too old to answer this, and every run recorded before runners existed, render as
-   * "local" — see {@link CiRunDto.runnerName} for the label — rather than as a gap.
+   * "unassigned" — see {@link CiRunDto.runnerName} for the label — rather than as a gap.
    */
   readonly runnerId?: string | null;
   /**
@@ -535,7 +535,12 @@ export interface CiQueueRunnerSummaryDto {
  * collapses to `concurrentBuilds` alone.
  */
 export interface CiQueueResponse {
-  readonly concurrentBuilds: number;
+  /**
+   * The built-in executor's own slot count. No longer read by this client — every run is now held
+   * by a runner, including the platform host's own `localhost` one — and the service is dropping
+   * this field. Kept optional only so a still-answering server does not fail decoding.
+   */
+  readonly concurrentBuilds?: number;
   readonly generatedAt: string;
   readonly running: readonly CiRunDto[];
   readonly queued: readonly CiRunDto[];

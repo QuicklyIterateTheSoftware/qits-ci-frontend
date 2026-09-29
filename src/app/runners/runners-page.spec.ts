@@ -569,6 +569,97 @@ describe('RunnersPage', () => {
     expect(text()).toContain('No runners are registered yet.');
   });
 
+  // --- the platform host's own runner: localhost first, its badge, and its own delete rule ---
+
+  it('draws localhost first regardless of the order the service answers, then the rest by name', async () => {
+    mount();
+    flushRunners([
+      runner({ id: 'r2', name: 'zebra' }),
+      runner({ id: 'r1', name: 'localhost' }),
+      runner({ id: 'r3', name: 'alpha' }),
+    ]);
+    await settle();
+
+    const names = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.runner .name'),
+    ).map((el) => (el.textContent ?? '').trim());
+    expect(names).toEqual(['localhost', 'alpha', 'zebra']);
+  });
+
+  it('labels the localhost runner as the platform host', async () => {
+    mount();
+    flushRunners([runner({ id: 'r1', name: 'localhost' }), runner({ id: 'r2', name: 'other' })]);
+    await settle();
+
+    expect(text()).toContain('platform host');
+  });
+
+  it('does not label a runner named anything else', async () => {
+    mount();
+    flushRunners([runner({ id: 'r1', name: 'build-box-1' })]);
+    await settle();
+
+    expect(text()).not.toContain('platform host');
+  });
+
+  it('refuses to delete localhost when it is the only runner, client-side, and says why', async () => {
+    mount();
+    flushRunners([runner({ id: 'r1', name: 'localhost', heldRuns: 0 })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+
+    expect(text()).toContain(
+      "LAST_RUNNER: the platform host's runner cannot be deleted while it is the only runner",
+    );
+    const deleteButton = buttons('Delete')[0];
+    expect(deleteButton.disabled).toBe(true);
+  });
+
+  it('offers to delete localhost once another runner exists', async () => {
+    mount();
+    flushRunners([
+      runner({ id: 'r1', name: 'localhost', heldRuns: 0 }),
+      runner({ id: 'r2', name: 'build-box-1', heldRuns: 0 }),
+    ]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+
+    const deleteButton = buttons('Delete')[0];
+    expect(deleteButton.disabled).toBe(false);
+  });
+
+  it('renders the server’s own LAST_RUNNER 409 as the same client-side sentence', async () => {
+    mount();
+    flushRunners([
+      runner({ id: 'r1', name: 'localhost', heldRuns: 0 }),
+      runner({ id: 'r2', name: 'build-box-1', heldRuns: 0 }),
+    ]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Delete')[0].click();
+    await settle();
+    buttons('Yes, delete it')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners/r1');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(
+      { code: 'LAST_RUNNER', message: 'the platform host runner cannot be deleted' },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await settle();
+
+    expect(text()).toContain(
+      "LAST_RUNNER: the platform host's runner cannot be deleted while it is the only runner",
+    );
+  });
+
   // --- quarantine and health checks ---
 
   it('tolerates a runner with none of the quarantine/health-check fields — an older qits-ci', async () => {

@@ -142,10 +142,10 @@ describe('ActiveRuns', () => {
    * was written against before either field existed. `queue-capacity.spec.ts`-equivalent coverage of
    * the line itself lives in the dedicated block near the end of this file.
    */
-  function flushQueue(concurrentBuilds = 0): void {
+  function flushQueue(): void {
     http
       .expectOne((request) => request.url === '/ci/api/runs/queue')
-      .flush({ concurrentBuilds, generatedAt: new Date().toISOString(), running: [], queued: [] });
+      .flush({ generatedAt: new Date().toISOString(), running: [], queued: [] });
   }
 
   function text(): string {
@@ -706,7 +706,7 @@ describe('ActiveRuns', () => {
     expect(link?.getAttribute('href')).toBe('/runners');
   });
 
-  it('says which runner is executing a RUNNING row, and says local for the built-in executor', async () => {
+  it('says which runner is executing a RUNNING row, and says unassigned for a pre-runner run', async () => {
     mount();
     flushActive([
       run('r1', { status: 'RUNNING', runnerId: 'run-1', runnerName: 'build-box-1' }),
@@ -715,7 +715,7 @@ describe('ActiveRuns', () => {
     await settle();
 
     expect(text()).toContain('on build-box-1');
-    expect(text()).toContain('on local');
+    expect(text()).toContain('on unassigned');
   });
 
   /** A queued run has not been claimed by anything yet, so there is no runner to say. */
@@ -724,15 +724,14 @@ describe('ActiveRuns', () => {
     flushActive([run('r1', { status: 'QUEUED' })]);
     await settle();
 
-    expect(text()).not.toContain(' on local');
+    expect(text()).not.toContain(' on unassigned');
   });
 
-  it('draws the capacity line from the queue’s own concurrentBuilds and connected runners', async () => {
+  it('draws the capacity line from the connected runners alone', async () => {
     mount();
     http.expectOne('/ci/api/runs/active').flush({ runs: [] });
     http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
     http.expectOne((request) => request.url === '/ci/api/runs/queue').flush({
-      concurrentBuilds: 4,
       generatedAt: new Date().toISOString(),
       running: [],
       queued: [],
@@ -743,17 +742,16 @@ describe('ActiveRuns', () => {
     });
     await settle();
 
-    expect(text()).toContain('4 local slots, 2 runner slots across 1 connected runner');
+    expect(text()).toContain('2 slots across 1 connected runner');
   });
 
-  /** A qits-ci too old to answer `runners` at all draws the local half alone, not a gap. */
-  it('draws only the local half of the capacity line when the service answers no runners field', async () => {
+  /** No connected runners at all — including a qits-ci too old to answer `runners` — is said plainly. */
+  it('says there are no connected runners when the service answers no runners field', async () => {
     mount();
     flushActive([]);
     await settle();
 
-    expect(text()).toContain('0 local slots');
-    expect(text()).not.toContain('connected runner');
+    expect(text()).toContain('no connected runners');
   });
 
   it('keeps the last capacity line on screen when a poll’s queue read fails', async () => {
@@ -762,13 +760,13 @@ describe('ActiveRuns', () => {
     http.expectOne('/ci/api/runs/active').flush({ runs: [] });
     http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
     http.expectOne((request) => request.url === '/ci/api/runs/queue').flush({
-      concurrentBuilds: 4,
       generatedAt: new Date().toISOString(),
       running: [],
       queued: [],
+      runners: [{ id: 'a', name: 'runner-a', slots: 4, held: 0, connected: true }],
     });
     await settle();
-    expect(text()).toContain('4 local slots');
+    expect(text()).toContain('4 slots across 1 connected runner');
 
     await tick(ACTIVE_POLL_INTERVAL_MS);
     http.expectOne('/ci/api/runs/active').flush({ runs: [] });
@@ -778,6 +776,6 @@ describe('ActiveRuns', () => {
       .flush(null, { status: 503, statusText: 'Down' });
     await settle();
 
-    expect(text()).toContain('4 local slots');
+    expect(text()).toContain('4 slots across 1 connected runner');
   });
 });

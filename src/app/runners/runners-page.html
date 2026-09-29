@@ -115,6 +115,9 @@
           <li class="runner">
             <div class="row">
               <span class="name">{{ runner.name }}</span>
+              @if (isPlatformHost(runner)) {
+                <qits-badge label="platform host" tone="neutral" />
+              }
               <qits-badge [label]="connectivity(runner).label" [tone]="connectivity(runner).tone" />
               @if (runner.quarantined) {
                 <qits-badge label="quarantined" tone="warning" [attr.title]="quarantineReason(runner)" />

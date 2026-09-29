@@ -35,6 +35,52 @@ export const RUNNERS_POLL_INTERVAL_MS = 10_000;
  */
 const NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 
+/**
+ * The name qits-ci registers automatically for the platform host itself, now that every run is held
+ * by a runner rather than a built-in in-process executor. It is a runner like any other — it can be
+ * edited, health-checked and (once another runner exists) deleted — except that it is drawn first in
+ * the list and cannot be deleted while it is the only runner, since deleting it would leave nothing
+ * to hold a run.
+ */
+const LOCALHOST_RUNNER_NAME = 'localhost';
+
+/** localhost first, then alphabetically by name — the same ordering the service itself now applies. */
+function sortRunners(runners: readonly CiRunnerDto[]): readonly CiRunnerDto[] {
+  return [...runners].sort((a, b) => {
+    if (a.name === LOCALHOST_RUNNER_NAME && b.name !== LOCALHOST_RUNNER_NAME) {
+      return -1;
+    }
+    if (b.name === LOCALHOST_RUNNER_NAME && a.name !== LOCALHOST_RUNNER_NAME) {
+      return 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/** The reason shown, client-side, when the platform host's own runner is the only one in the list. */
+const LAST_RUNNER_REASON =
+  "LAST_RUNNER: the platform host's runner cannot be deleted while it is the only runner";
+
+/**
+ * The service's own refusal for the same rule, read off a 409 body the same way
+ * {@link edgePlaneUnconfiguredMessage} reads `EDGE_PLANE_UNCONFIGURED` — a `code` field, or the
+ * marker inside the message text, whichever the server answers with.
+ */
+function lastRunnerMessage(error: unknown): string | null {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 409) {
+    return null;
+  }
+  const body = error.error;
+  if (typeof body !== 'object' || body === null) {
+    return null;
+  }
+  const code = 'code' in body ? (body as { code: unknown }).code : null;
+  const message = 'message' in body ? (body as { message: unknown }).message : null;
+  const marker = 'LAST_RUNNER';
+  const matches = code === marker || (typeof message === 'string' && message.includes(marker));
+  return matches ? LAST_RUNNER_REASON : null;
+}
+
 /** Slots a single runner may be given on creation. The server's own ceiling; mirrored for the same reason. */
 const MIN_SLOTS = 1;
 const MAX_SLOTS = 16;
@@ -332,7 +378,7 @@ export class RunnersPage {
   protected async load(): Promise<void> {
     this.runners.set(LOADING);
     try {
-      const runners = await this.api.runners();
+      const runners = sortRunners(await this.api.runners());
       this.runners.set(ready(runners));
       this.reconcileHealthchecking(runners);
     } catch (error) {
@@ -346,7 +392,7 @@ export class RunnersPage {
     }
     this.inFlight = true;
     try {
-      const runners = await this.api.runners();
+      const runners = sortRunners(await this.api.runners());
       this.runners.set(ready(runners));
       this.reconcileHealthchecking(runners);
     } catch {
@@ -596,12 +642,22 @@ export class RunnersPage {
     }
   }
 
+  /** Whether this is the runner qits-ci registers automatically for the platform host itself. */
+  protected isPlatformHost(runner: CiRunnerDto): boolean {
+    return runner.name === LOCALHOST_RUNNER_NAME;
+  }
+
   /** Why deletion is refused, client-side, before the server is ever asked. Empty means it is offered. */
   protected deleteBlockedReason(runner: CiRunnerDto): string {
-    if (runner.heldRuns === 0) {
-      return '';
+    if (runner.heldRuns > 0) {
+      return `This runner holds ${runner.heldRuns} run${runner.heldRuns === 1 ? '' : 's'} right now.`;
     }
-    return `This runner holds ${runner.heldRuns} run${runner.heldRuns === 1 ? '' : 's'} right now.`;
+    const state = this.runners();
+    const allRunners = state.kind === 'ready' ? state.value : [];
+    if (this.isPlatformHost(runner) && allRunners.length <= 1) {
+      return LAST_RUNNER_REASON;
+    }
+    return '';
   }
 
   protected askDelete(): void {
@@ -621,10 +677,11 @@ export class RunnersPage {
       this.confirmingDelete.set(false);
       await this.load();
     } catch (error) {
-      // The 409 body is the fact that matters — the runner started holding a run between this
-      // page's last read and the click — and it is rendered rather than folded into a generic
-      // failure sentence.
-      this.deleteError.set(describeError(error));
+      // The 409 body is the fact that matters — either the runner started holding a run between
+      // this page's last read and the click, or the server caught LAST_RUNNER a beat before this
+      // page's own client-side check would have — and it is rendered rather than folded into a
+      // generic failure sentence.
+      this.deleteError.set(lastRunnerMessage(error) ?? describeError(error));
     } finally {
       this.deleting.set(false);
     }

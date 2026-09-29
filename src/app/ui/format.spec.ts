@@ -152,32 +152,28 @@ describe('format', () => {
   });
 
   describe('formatQueueCapacity', () => {
-    it('says the local half alone when the service answers no runners at all', () => {
-      expect(formatQueueCapacity(4, undefined)).toBe('4 local slots');
-      expect(formatQueueCapacity(1, null)).toBe('1 local slot');
+    it('says there are no connected runners when the service answers no runners at all', () => {
+      expect(formatQueueCapacity(undefined)).toBe('no connected runners');
+      expect(formatQueueCapacity(null)).toBe('no connected runners');
     });
 
-    it('adds the runner half, counting only connected runners’ slots', () => {
+    it('sums slots, counting only connected runners’', () => {
       const runners = [
         { slots: 2, connected: true },
         { slots: 3, connected: true },
         { slots: 8, connected: false },
       ];
-      expect(formatQueueCapacity(4, runners)).toBe(
-        '4 local slots, 5 runner slots across 2 connected runners',
-      );
+      expect(formatQueueCapacity(runners)).toBe('5 slots across 2 connected runners');
     });
 
     /** A deployment with runners but none connected still says so plainly, not as a gap. */
-    it('says zero rather than nothing when runners exist but none are connected', () => {
-      expect(formatQueueCapacity(2, [{ slots: 4, connected: false }])).toBe(
-        '2 local slots, 0 runner slots across 0 connected runners',
-      );
+    it('says there are no connected runners when runners exist but none are connected', () => {
+      expect(formatQueueCapacity([{ slots: 4, connected: false }])).toBe('no connected runners');
     });
 
     it('singularises one slot and one runner', () => {
-      expect(formatQueueCapacity(1, [{ slots: 1, connected: true }])).toBe(
-        '1 local slot, 1 runner slot across 1 connected runner',
+      expect(formatQueueCapacity([{ slots: 1, connected: true }])).toBe(
+        '1 slot across 1 connected runner',
       );
     });
   });

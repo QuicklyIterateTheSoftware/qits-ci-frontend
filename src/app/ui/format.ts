@@ -166,27 +166,27 @@ export function formatEta(millis: number): string {
 }
 
 /**
- * `4 local slots, 6 runner slots across 3 connected runners` — how much capacity the queue has to
- * work with, right above the queue itself.
+ * `6 slots across 3 connected runners` — how much capacity the queue has to work with, right above
+ * the queue itself.
  *
- * `runners` is optional and nullable for the one reason every field on this wire is: a qits-ci that
- * predates runners answers nothing here, and the honest answer for a deployment with none is the
- * local half alone rather than a claim about zero runners it never made. `slots` is summed over the
- * **connected** runners only — a registered-but-away runner is not capacity anyone can claim right
- * now, and counting it would make the number a promise about hardware that is not there.
+ * Every run is now held by a runner — including the platform host's own `localhost` one — so this
+ * reads `runners` alone; the built-in executor's own `concurrentBuilds` is no longer part of the
+ * picture. `slots` is summed over the **connected** runners only — a registered-but-away runner is
+ * not capacity anyone can claim right now, and counting it would make the number a promise about
+ * hardware that is not there. `runners` is optional and nullable for the one reason every field on
+ * this wire is: a qits-ci that predates runners answers nothing here, and the honest answer for that
+ * is that there are no connected runners to report.
  */
 export function formatQueueCapacity(
-  concurrentBuilds: number,
   runners: readonly { readonly slots: number; readonly connected: boolean }[] | null | undefined,
 ): string {
-  const local = `${concurrentBuilds} local slot${concurrentBuilds === 1 ? '' : 's'}`;
-  if (!runners) {
-    return local;
+  const connected = (runners ?? []).filter((runner) => runner.connected);
+  if (connected.length === 0) {
+    return 'no connected runners';
   }
-  const connected = runners.filter((runner) => runner.connected);
   const slots = connected.reduce((total, runner) => total + runner.slots, 0);
   return (
-    `${local}, ${slots} runner slot${slots === 1 ? '' : 's'} across ` +
+    `${slots} slot${slots === 1 ? '' : 's'} across ` +
     `${connected.length} connected runner${connected.length === 1 ? '' : 's'}`
   );
 }
