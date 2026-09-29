@@ -74,6 +74,19 @@
         }
       </select>
     </label>
+    <label class="field field-narrow">
+      <span>Step memory (optional)</span>
+      <input
+        type="text"
+        class="step-memory"
+        [value]="newStepMemoryLimit()"
+        (input)="newStepMemoryLimit.set($any($event.target).value)"
+        placeholder="platform default"
+      />
+      @if (stepMemoryLimitProblem()) {
+        <span class="field-error" role="alert">{{ stepMemoryLimitProblem() }}</span>
+      }
+    </label>
     <qits-button variant="primary" size="sm" type="submit" [busy]="creating()">
       Register
     </qits-button>
@@ -110,6 +123,7 @@
               <span class="fact">{{ slotsDisplay(runner) }}</span>
               <span class="fact">{{ runner.heldRuns }} held</span>
               <span class="chip-plane">{{ runner.plane }}</span>
+              <span class="fact step-memory">{{ stepMemoryDisplay(runner) }}</span>
               <span class="fact seen">seen {{ formatAgo(runner.lastSeenAt) }}</span>
               @if (healthcheck(runner); as hc) {
                 <span class="healthcheck">
@@ -184,6 +198,23 @@
                       </select>
                     </label>
                     <p class="plane-explanation">{{ planeExplanation }}</p>
+                    <label class="field field-narrow">
+                      <span>Step memory</span>
+                      <input
+                        type="text"
+                        class="step-memory"
+                        [value]="draft.stepMemoryLimit"
+                        (input)="setEditStepMemoryLimit($any($event.target).value)"
+                        placeholder="platform default"
+                      />
+                      <span class="field-hint">
+                        Each step's memory cap on this runner, e.g. 6g. Empty = the platform default.
+                        Applies from the next step.
+                      </span>
+                      @if (editStepMemoryLimitProblem()) {
+                        <span class="field-error" role="alert">{{ editStepMemoryLimitProblem() }}</span>
+                      }
+                    </label>
                     <div class="menu-actions">
                       <qits-button
                         variant="primary"

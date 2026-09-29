@@ -276,6 +276,139 @@ describe('RunnersPage', () => {
     // No PATCH was ever sent — http.verify() in afterEach would fail if one had been.
   });
 
+  // --- the step memory limit ---
+
+  it('shows a runner’s own step memory limit, and "platform default" for one with none', async () => {
+    mount();
+    flushRunners([
+      runner({ id: 'r1', name: 'big-box', stepMemoryLimit: '6g' }),
+      runner({ id: 'r2', name: 'plain-box', stepMemoryLimit: null }),
+      runner({ id: 'r3', name: 'old-qits-ci-box' }),
+    ]);
+    await settle();
+
+    const cells = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.runner .fact.step-memory'),
+    ).map((cell) => cell.textContent?.trim());
+    expect(cells).toEqual(['6g memory', 'platform default memory', 'platform default memory']);
+  });
+
+  it('sends a typed step memory limit on create, trimmed', async () => {
+    mount();
+    flushRunners([]);
+    await settle();
+
+    setValue('.create input[type="text"]', 'build-box-big');
+    setValue('.create input.step-memory', ' 6g ');
+    buttons('Register')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners');
+    expect(request.request.body).toEqual({
+      name: 'build-box-big',
+      description: null,
+      slots: 1,
+      plane: 'EDGE',
+      stepMemoryLimit: '6g',
+    });
+    request.flush(
+      { ...runner({ id: 'r9', name: 'build-box-big', stepMemoryLimit: '6g' }), installScript: 'x' },
+      { status: 201, statusText: 'Created' },
+    );
+    await settle();
+    flushRunners([runner({ id: 'r9', name: 'build-box-big', stepMemoryLimit: '6g' })]);
+    await settle();
+  });
+
+  it('refuses a step memory limit that is not a docker size on create, and sends nothing', async () => {
+    mount();
+    flushRunners([]);
+    await settle();
+
+    setValue('.create input[type="text"]', 'build-box-typo');
+    setValue('.create input.step-memory', '6 GB');
+    buttons('Register')[0].click();
+    await settle();
+
+    expect(text()).toContain('A docker size: digits and an optional unit b, k, m or g');
+    // No POST was ever sent — http.verify() in afterEach would fail if one had been.
+  });
+
+  it('changes an existing runner’s step memory limit, sending it only because it moved', async () => {
+    mount();
+    flushRunners([runner({ stepMemoryLimit: null })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Edit slots/description')[0].click();
+    await settle();
+    setValue('.edit input.step-memory', '8192m');
+    buttons('Save')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners/r1');
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({
+      slots: 2,
+      description: null,
+      plane: 'INTERNAL',
+      stepMemoryLimit: '8192m',
+    });
+    request.flush(runner({ stepMemoryLimit: '8192m' }));
+    await settle();
+    flushRunners([runner({ stepMemoryLimit: '8192m' })]);
+    await settle();
+    expect(text()).toContain('8192m memory');
+  });
+
+  it('clears a step memory limit back to the platform default with an empty string', async () => {
+    mount();
+    flushRunners([runner({ stepMemoryLimit: '6g' })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Edit slots/description')[0].click();
+    await settle();
+    const input = (fixture.nativeElement as HTMLElement).querySelector(
+      '.edit input.step-memory',
+    ) as HTMLInputElement;
+    expect(input.value).toBe('6g');
+    setValue('.edit input.step-memory', '');
+    buttons('Save')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners/r1');
+    expect(request.request.body).toEqual({
+      slots: 2,
+      description: null,
+      plane: 'INTERNAL',
+      stepMemoryLimit: '',
+    });
+    request.flush(runner({ stepMemoryLimit: null }));
+    await settle();
+    flushRunners([runner({ stepMemoryLimit: null })]);
+    await settle();
+  });
+
+  it('refuses a malformed step memory limit on edit, says why, and sends nothing', async () => {
+    mount();
+    flushRunners([runner({ stepMemoryLimit: '6g' })]);
+    await settle();
+
+    buttons('Actions')[0].click();
+    await settle();
+    buttons('Edit slots/description')[0].click();
+    await settle();
+    setValue('.edit input.step-memory', 'lots');
+    buttons('Save')[0].click();
+    await settle();
+
+    expect(text()).toContain('A docker size: digits and an optional unit b, k, m or g');
+    // No PATCH was ever sent — http.verify() in afterEach would fail if one had been.
+  });
+
   it('still refuses 0 on create, and says why', async () => {
     mount();
     flushRunners([]);

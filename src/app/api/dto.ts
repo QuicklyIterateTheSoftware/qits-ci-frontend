@@ -448,6 +448,10 @@ export interface CiRunnerHealthcheckDto {
  * 0 while it is quarantined, though `slots` itself keeps carrying the configured value, not the
  * effective one. A newly registered runner starts quarantined, with `quarantineReason` null, until
  * its first health check passes; while quarantined, health checks repeat hourly.
+ *
+ * `stepMemoryLimit` is the memory cap this runner's step containers get — a docker size such as
+ * `6g` or `6144m`, applied as memory and memory-swap alike. `null` means the platform default
+ * (qits-ci's own `qits.ci.memory-limit`); absent means a qits-ci too old to say, drawn the same way.
  */
 export interface CiRunnerDto {
   readonly id: string;
@@ -455,6 +459,7 @@ export interface CiRunnerDto {
   readonly description: string | null;
   readonly slots: number;
   readonly plane: CiRunnerPlane;
+  readonly stepMemoryLimit?: string | null;
   readonly capabilities: CiRunnerCapabilities | null;
   readonly registered: boolean;
   readonly connected: boolean;
@@ -488,19 +493,25 @@ export interface CiRunnerCreated extends CiRunnerDto {
  * What `POST /ci/api/runners` takes: `name` and `slots` are the two facts a runner cannot be
  * created without; `description` and `plane` are optional here — the wire itself defaults an absent
  * `plane` to `EDGE` — though the runners page always sends its own choice explicitly.
+ * `stepMemoryLimit` is sent only when one was typed: absent is the platform default.
  */
 export interface CreateRunnerRequest {
   readonly name: string;
   readonly description?: string | null;
   readonly slots: number;
   readonly plane?: CiRunnerPlane;
+  readonly stepMemoryLimit?: string;
 }
 
-/** What `PATCH /ci/api/runners/{id}` takes. All three fields are optional; send only what changed. */
+/**
+ * What `PATCH /ci/api/runners/{id}` takes. Every field is optional; send only what changed.
+ * `stepMemoryLimit` as an empty string clears it back to the platform default — absent leaves it.
+ */
 export interface PatchRunnerRequest {
   readonly slots?: number;
   readonly description?: string | null;
   readonly plane?: CiRunnerPlane;
+  readonly stepMemoryLimit?: string;
 }
 
 /**

@@ -47,6 +47,26 @@ const MAX_SLOTS = 16;
 const MIN_EDIT_SLOTS = 0;
 
 /**
+ * A runner's step memory limit: the runner's own docker-size grammar — digits and an optional
+ * `b`/`k`/`m`/`g` — mirrored for {@link NAME_PATTERN}'s reason. The server additionally refuses
+ * anything under docker's 6 MiB floor, and its message is rendered when it does.
+ */
+const STEP_MEMORY_LIMIT_PATTERN = /^[0-9]{1,15}[bkmgBKMG]?$/;
+
+/** Why a typed step memory limit is refused before the round trip, or `''` when it is not. */
+function stepMemoryLimitProblemOf(value: string): string {
+  const limit = value.trim();
+  return limit === '' || STEP_MEMORY_LIMIT_PATTERN.test(limit)
+    ? ''
+    : 'A docker size: digits and an optional unit b, k, m or g — e.g. 6g or 6144m.';
+}
+
+/** What the row says about a runner's step memory: its own cap, or the platform's. */
+function stepMemoryDisplayOf(runner: CiRunnerDto): string {
+  return runner.stepMemoryLimit ? `${runner.stepMemoryLimit} memory` : 'platform default memory';
+}
+
+/**
  * The two planes a runner may sit on, in the order they are offered. `EDGE` is first because it is
  * the default: the owner's ruling is that a runner is ordinarily a remote host reaching the platform
  * through its public edge, and `INTERNAL` — on the platform host's own qits-net — is the exception.
@@ -150,6 +170,8 @@ interface EditDraft {
   readonly slots: number;
   readonly description: string;
   readonly plane: CiRunnerPlane;
+  /** As typed; blank is the platform default. */
+  readonly stepMemoryLimit: string;
 }
 
 /**
@@ -186,6 +208,7 @@ export class RunnersPage {
   protected readonly formatAgo = (iso: string | null) => formatAgo(iso, this.now());
   protected readonly connectivity = connectivityOf;
   protected readonly quarantineReason = quarantineReasonOf;
+  protected readonly stepMemoryDisplay = stepMemoryDisplayOf;
   protected readonly none = NONE;
   protected readonly minSlots = MIN_SLOTS;
   protected readonly maxSlots = MAX_SLOTS;
@@ -201,6 +224,7 @@ export class RunnersPage {
   protected readonly newDescription = signal('');
   protected readonly newSlots = signal(1);
   protected readonly newPlane = signal<CiRunnerPlane>(DEFAULT_PLANE);
+  protected readonly newStepMemoryLimit = signal('');
   protected readonly creating = signal(false);
   protected readonly createError = signal('');
 
@@ -230,6 +254,10 @@ export class RunnersPage {
       : `Slots must be between ${MIN_SLOTS} and ${MAX_SLOTS}.`;
   });
 
+  protected readonly stepMemoryLimitProblem = computed(() =>
+    this.submitted() ? stepMemoryLimitProblemOf(this.newStepMemoryLimit()) : '',
+  );
+
   // --- the once-only install-script panel, shared by creation and by a replaced token ---
 
   protected readonly panel = signal<InstallPanel | null>(null);
@@ -254,6 +282,11 @@ export class RunnersPage {
     return draft.slots >= MIN_EDIT_SLOTS && draft.slots <= MAX_SLOTS
       ? ''
       : `Slots must be between ${MIN_EDIT_SLOTS} and ${MAX_SLOTS}.`;
+  });
+
+  protected readonly editStepMemoryLimitProblem = computed(() => {
+    const draft = this.editing();
+    return draft && this.editSubmitted() ? stepMemoryLimitProblemOf(draft.stepMemoryLimit) : '';
   });
   protected readonly replacingToken = signal(false);
   protected readonly confirmingDelete = signal(false);
@@ -396,23 +429,27 @@ export class RunnersPage {
 
   protected async createRunner(): Promise<void> {
     this.submitted.set(true);
-    if (this.nameProblem() || this.slotsProblem()) {
+    if (this.nameProblem() || this.slotsProblem() || this.stepMemoryLimitProblem()) {
       return;
     }
     this.creating.set(true);
     this.createError.set('');
+    // Sent only when typed: absent is the platform default, which is what most runners want.
+    const stepMemoryLimit = this.newStepMemoryLimit().trim();
     try {
       const created = await this.api.createRunner({
         name: this.newName(),
         description: this.newDescription() || null,
         slots: this.newSlots(),
         plane: this.newPlane(),
+        ...(stepMemoryLimit ? { stepMemoryLimit } : {}),
       });
       this.openInstallPanel(created);
       this.newName.set('');
       this.newDescription.set('');
       this.newSlots.set(1);
       this.newPlane.set(DEFAULT_PLANE);
+      this.newStepMemoryLimit.set('');
       this.submitted.set(false);
       await this.load();
     } catch (error) {
@@ -474,6 +511,7 @@ export class RunnersPage {
       slots: runner.slots,
       description: runner.description ?? '',
       plane: runner.plane,
+      stepMemoryLimit: runner.stepMemoryLimit ?? '',
     });
     this.saveError.set('');
     this.editSubmitted.set(false);
@@ -506,12 +544,27 @@ export class RunnersPage {
     }
   }
 
+  protected setEditStepMemoryLimit(stepMemoryLimit: string): void {
+    const draft = this.editing();
+    if (draft) {
+      this.editing.set({ ...draft, stepMemoryLimit });
+    }
+  }
+
   protected async saveEdit(runner: CiRunnerDto): Promise<void> {
     this.editSubmitted.set(true);
     const draft = this.editing();
-    if (!draft || draft.slots < MIN_EDIT_SLOTS || draft.slots > MAX_SLOTS) {
+    if (
+      !draft ||
+      draft.slots < MIN_EDIT_SLOTS ||
+      draft.slots > MAX_SLOTS ||
+      stepMemoryLimitProblemOf(draft.stepMemoryLimit)
+    ) {
       return;
     }
+    // Sent only when it moved — an empty string is the clear, back to the platform default.
+    const stepMemoryLimit = draft.stepMemoryLimit.trim();
+    const memoryChanged = stepMemoryLimit !== (runner.stepMemoryLimit ?? '');
     this.saving.set(true);
     this.saveError.set('');
     try {
@@ -519,6 +572,7 @@ export class RunnersPage {
         slots: draft.slots,
         description: draft.description || null,
         plane: draft.plane,
+        ...(memoryChanged ? { stepMemoryLimit } : {}),
       });
       this.editing.set(null);
       await this.load();
