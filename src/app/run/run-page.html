@@ -111,6 +111,8 @@
         {{ run.archetypeName }}
         @if (run.archetypeRev) {
           · <code>{{ shortSha(run.archetypeRev) }}</code>
+        } @else if (run.archetypeVersion) {
+          · <code>{{ run.archetypeVersion }}</code>
         }
       } @else {
         {{ none }}

@@ -222,10 +222,22 @@ export interface CiRunDto {
    * it did before the field existed.
    */
   readonly archetypeName?: string | null;
-  /** The archetype file's path within the wrapper repository. Null under the same conditions as `archetypeName`. */
+  /**
+   * The archetype file's path — in the repository itself when it shadows the recipe, otherwise in
+   * qits-ci-service, which ships it. Null under the same conditions as `archetypeName`.
+   */
   readonly archetypeConfigPath?: string | null;
-  /** The wrapper revision the archetype was read at. Null under the same conditions as `archetypeName`. */
+  /**
+   * The commit the repository's OWN copy of the archetype was read at. Null when the recipe is the
+   * one qits-ci ships, rather than one the repository shadows.
+   */
   readonly archetypeRev?: string | null;
+  /**
+   * The qits-ci version whose shipped recipe composed the run. Null when the repository shadowed
+   * the recipe (then `archetypeRev` is set instead) and under the same conditions as
+   * `archetypeName` otherwise.
+   */
+  readonly archetypeVersion?: string | null;
   /**
    * How long each planned step is expected to take, in millis and in pipeline order — the p95 of the
    * same step's historical runtimes in the same pipeline.
