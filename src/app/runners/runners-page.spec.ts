@@ -22,7 +22,6 @@ describe('RunnersPage', () => {
     name: 'build-box-1',
     description: null,
     slots: 2,
-    plane: 'INTERNAL',
     capabilities: null,
     registered: true,
     connected: true,
@@ -73,7 +72,7 @@ describe('RunnersPage', () => {
     http.expectOne('/ci/api/runners').flush({ runners });
   }
 
-  it('lists a runner: name, connectivity, slots, held, plane and a relative last-seen', async () => {
+  it('lists a runner: name, connectivity, slots, held and a relative last-seen', async () => {
     mount();
     flushRunners([runner()]);
     await settle();
@@ -82,7 +81,6 @@ describe('RunnersPage', () => {
     expect(text()).toContain('running'); // connected → the green "running" word
     expect(text()).toContain('2 slots');
     expect(text()).toContain('0 held');
-    expect(text()).toContain('INTERNAL');
     expect(text()).toContain('seen 5s ago');
   });
 
@@ -132,14 +130,6 @@ describe('RunnersPage', () => {
     input.dispatchEvent(new Event('input'));
   }
 
-  function setSelectValue(selector: string, value: string): void {
-    const select = (fixture.nativeElement as HTMLElement).querySelector(
-      selector,
-    ) as HTMLSelectElement;
-    select.value = value;
-    select.dispatchEvent(new Event('change'));
-  }
-
   it('rejects a name the server rule would also refuse, before any request is made', async () => {
     mount();
     flushRunners([]);
@@ -153,27 +143,23 @@ describe('RunnersPage', () => {
     // No POST was ever sent — http.verify() in afterEach would fail if one had been.
   });
 
-  it('defaults the create form’s plane choice to EDGE', async () => {
+  it('offers no plane choice on the create form — every runner is EDGE now', async () => {
     mount();
     flushRunners([]);
     await settle();
 
-    const select = (fixture.nativeElement as HTMLElement).querySelector(
-      '.create select',
-    ) as HTMLSelectElement;
-    expect(select.value).toBe('EDGE');
-    expect(text()).toContain(
-      'EDGE: steps on this runner reach the platform through its public names with a job token',
-    );
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.create select'),
+    ).toBeNull();
+    expect(text()).not.toContain('INTERNAL');
   });
 
-  it('sends the chosen plane, INTERNAL, when it is changed away from the EDGE default', async () => {
+  it('sends plane: EDGE on create without offering the choice — qits-513', async () => {
     mount();
     flushRunners([]);
     await settle();
 
     setValue('.create input[type="text"]', 'build-box-internal');
-    setSelectValue('.create select', 'INTERNAL');
     buttons('Register')[0].click();
     await settle();
 
@@ -182,7 +168,7 @@ describe('RunnersPage', () => {
       name: 'build-box-internal',
       description: null,
       slots: 1,
-      plane: 'INTERNAL',
+      plane: 'EDGE',
     });
     request.flush(
       { ...runner({ id: 'r9', name: 'build-box-internal' }), installScript: 'x' },
@@ -215,25 +201,27 @@ describe('RunnersPage', () => {
     );
   });
 
-  it('sends the edited plane, alongside slots and description, when a row is saved', async () => {
+  it('offers no plane choice in the edit dialog either, and never sends plane on a save', async () => {
     mount();
-    flushRunners([runner({ plane: 'EDGE' })]);
+    flushRunners([runner()]);
     await settle();
 
     buttons('Actions')[0].click();
     await settle();
     buttons('Edit slots/description')[0].click();
     await settle();
-    setSelectValue('.edit select', 'INTERNAL');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.edit select'),
+    ).toBeNull();
     buttons('Save')[0].click();
     await settle();
 
     const request = http.expectOne('/ci/api/runners/r1');
     expect(request.request.method).toBe('PATCH');
-    expect(request.request.body).toEqual({ slots: 2, description: null, plane: 'INTERNAL' });
-    request.flush(runner({ plane: 'INTERNAL' }));
+    expect(request.request.body).toEqual({ slots: 2, description: null });
+    request.flush(runner());
     await settle();
-    flushRunners([runner({ plane: 'INTERNAL' })]);
+    flushRunners([runner()]);
     await settle();
   });
 
@@ -252,7 +240,7 @@ describe('RunnersPage', () => {
 
     const request = http.expectOne('/ci/api/runners/r1');
     expect(request.request.method).toBe('PATCH');
-    expect(request.request.body).toEqual({ slots: 0, description: null, plane: 'INTERNAL' });
+    expect(request.request.body).toEqual({ slots: 0, description: null });
     request.flush(runner({ slots: 0 }));
     await settle();
     flushRunners([runner({ slots: 0 })]);
@@ -352,7 +340,6 @@ describe('RunnersPage', () => {
     expect(request.request.body).toEqual({
       slots: 2,
       description: null,
-      plane: 'INTERNAL',
       stepMemoryLimit: '8192m',
     });
     request.flush(runner({ stepMemoryLimit: '8192m' }));
@@ -383,7 +370,6 @@ describe('RunnersPage', () => {
     expect(request.request.body).toEqual({
       slots: 2,
       description: null,
-      plane: 'INTERNAL',
       stepMemoryLimit: '',
     });
     request.flush(runner({ stepMemoryLimit: null }));

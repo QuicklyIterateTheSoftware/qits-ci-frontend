@@ -107,13 +107,6 @@ h2 {
   font-size: 0.75rem;
 }
 
-.plane-explanation {
-  margin: 0.4rem 0 0;
-  color: #6b7280;
-  font-size: 0.8rem;
-  max-width: 48rem;
-}
-
 .note {
   margin: 0.5rem 0 0;
   padding: 0.4rem 0.6rem;
@@ -153,16 +146,6 @@ h2 {
   color: #6b7280;
   font-size: 0.85rem;
   white-space: nowrap;
-}
-
-/* Drawn like a capability chip — see `.chip` — rather than sharing its class, so the two stay
-   distinguishable: the plane is always present, capabilities are whatever a runner announced. */
-.chip-plane {
-  font-size: 0.75rem;
-  color: #4b5563;
-  background: #f3f4f6;
-  border-radius: 0.25rem;
-  padding: 0.05rem 0.4rem;
 }
 
 .quarantine-since {

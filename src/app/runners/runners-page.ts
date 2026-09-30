@@ -16,7 +16,6 @@ import type {
   CiRunnerCreated,
   CiRunnerDto,
   CiRunnerHealthcheckDto,
-  CiRunnerPlane,
 } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
@@ -113,21 +112,14 @@ function stepMemoryDisplayOf(runner: CiRunnerDto): string {
 }
 
 /**
- * The two planes a runner may sit on, in the order they are offered. `EDGE` is first because it is
- * the default: the owner's ruling is that a runner is ordinarily a remote host reaching the platform
- * through its public edge, and `INTERNAL` — on the platform host's own qits-net — is the exception.
+ * Every runner created here is `EDGE` — the owner's ruling is that a runner is ordinarily a remote
+ * host reaching the platform through its public edge, and the backend's other plane, `INTERNAL`, is
+ * being retired (qits-513). This client no longer offers a choice, but still sends the literal
+ * rather than omitting the field: the server only defaults an absent `plane` to `EDGE` when it knows
+ * its own public domain, and falls back to `INTERNAL` otherwise — see the comment on
+ * `CreateRunnerRequest` in `api/dto.ts`.
  */
-const RUNNER_PLANES: readonly CiRunnerPlane[] = ['EDGE', 'INTERNAL'];
-const DEFAULT_PLANE: CiRunnerPlane = 'EDGE';
-
-/** What each plane means for where a step's requests go, shown once under the choice. */
-const PLANE_EXPLANATIONS: Readonly<Record<CiRunnerPlane, string>> = {
-  EDGE: "EDGE: steps on this runner reach the platform through its public names with a job token; the runner needs no platform network.",
-  INTERNAL: "INTERNAL: steps use the platform's internal aliases; the runner must be on qits-net.",
-};
-
-/** The one sentence shown under a plane choice — both halves, so the reader sees the whole trade-off. */
-const PLANE_EXPLANATION = `${PLANE_EXPLANATIONS.EDGE} ${PLANE_EXPLANATIONS.INTERNAL}`;
+const CREATE_PLANE = 'EDGE';
 
 /** The friendly sentence this page renders instead of the server's own `EDGE_PLANE_UNCONFIGURED`. */
 const EDGE_PLANE_UNCONFIGURED_MESSAGE =
@@ -215,7 +207,6 @@ interface InstallPanel {
 interface EditDraft {
   readonly slots: number;
   readonly description: string;
-  readonly plane: CiRunnerPlane;
   /** As typed; blank is the platform default. */
   readonly stepMemoryLimit: string;
 }
@@ -259,8 +250,6 @@ export class RunnersPage {
   protected readonly minSlots = MIN_SLOTS;
   protected readonly maxSlots = MAX_SLOTS;
   protected readonly minEditSlots = MIN_EDIT_SLOTS;
-  protected readonly planes = RUNNER_PLANES;
-  protected readonly planeExplanation = PLANE_EXPLANATION;
 
   protected readonly runners = signal<Loadable<readonly CiRunnerDto[]>>(LOADING);
 
@@ -269,7 +258,6 @@ export class RunnersPage {
   protected readonly newName = signal('');
   protected readonly newDescription = signal('');
   protected readonly newSlots = signal(1);
-  protected readonly newPlane = signal<CiRunnerPlane>(DEFAULT_PLANE);
   protected readonly newStepMemoryLimit = signal('');
   protected readonly creating = signal(false);
   protected readonly createError = signal('');
@@ -487,14 +475,13 @@ export class RunnersPage {
         name: this.newName(),
         description: this.newDescription() || null,
         slots: this.newSlots(),
-        plane: this.newPlane(),
+        plane: CREATE_PLANE,
         ...(stepMemoryLimit ? { stepMemoryLimit } : {}),
       });
       this.openInstallPanel(created);
       this.newName.set('');
       this.newDescription.set('');
       this.newSlots.set(1);
-      this.newPlane.set(DEFAULT_PLANE);
       this.newStepMemoryLimit.set('');
       this.submitted.set(false);
       await this.load();
@@ -556,7 +543,6 @@ export class RunnersPage {
     this.editing.set({
       slots: runner.slots,
       description: runner.description ?? '',
-      plane: runner.plane,
       stepMemoryLimit: runner.stepMemoryLimit ?? '',
     });
     this.saveError.set('');
@@ -580,13 +566,6 @@ export class RunnersPage {
     const draft = this.editing();
     if (draft) {
       this.editing.set({ ...draft, description });
-    }
-  }
-
-  protected setEditPlane(plane: CiRunnerPlane): void {
-    const draft = this.editing();
-    if (draft) {
-      this.editing.set({ ...draft, plane });
     }
   }
 
@@ -617,7 +596,6 @@ export class RunnersPage {
       await this.api.patchRunner(runner.id, {
         slots: draft.slots,
         description: draft.description || null,
-        plane: draft.plane,
         ...(memoryChanged ? { stepMemoryLimit } : {}),
       });
       this.editing.set(null);

@@ -185,7 +185,7 @@ export class CiApi {
     );
   }
 
-  /** Change a runner's slots, description, plane or step memory limit. Send only the fields that changed. */
+  /** Change a runner's slots, description or step memory limit. Send only the fields that changed. */
   patchRunner(id: string, body: PatchRunnerRequest): Promise<CiRunnerDto> {
     return firstValueFrom(
       this.http.patch<CiRunnerDto>(`${this.base}/ci/api/runners/${encodeURIComponent(id)}`, body),

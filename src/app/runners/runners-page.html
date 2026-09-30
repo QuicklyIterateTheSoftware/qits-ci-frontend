@@ -66,14 +66,6 @@
         <span class="field-error" role="alert">{{ slotsProblem() }}</span>
       }
     </label>
-    <label class="field">
-      <span>Plane</span>
-      <select [value]="newPlane()" (change)="newPlane.set($any($event.target).value)">
-        @for (plane of planes; track plane) {
-          <option [value]="plane">{{ plane }}</option>
-        }
-      </select>
-    </label>
     <label class="field field-narrow">
       <span>Step memory (optional)</span>
       <input
@@ -91,7 +83,6 @@
       Register
     </qits-button>
   </form>
-  <p class="plane-explanation">{{ planeExplanation }}</p>
   @if (createError()) {
     <p class="note note-error" role="alert">{{ createError() }}</p>
   }
@@ -125,7 +116,6 @@
               }
               <span class="fact">{{ slotsDisplay(runner) }}</span>
               <span class="fact">{{ runner.heldRuns }} held</span>
-              <span class="chip-plane">{{ runner.plane }}</span>
               <span class="fact step-memory">{{ stepMemoryDisplay(runner) }}</span>
               <span class="fact seen">seen {{ formatAgo(runner.lastSeenAt) }}</span>
               @if (healthcheck(runner); as hc) {
@@ -189,18 +179,6 @@
                         (input)="setEditDescription($any($event.target).value)"
                       />
                     </label>
-                    <label class="field">
-                      <span>Plane</span>
-                      <select
-                        [value]="draft.plane"
-                        (change)="setEditPlane($any($event.target).value)"
-                      >
-                        @for (plane of planes; track plane) {
-                          <option [value]="plane">{{ plane }}</option>
-                        }
-                      </select>
-                    </label>
-                    <p class="plane-explanation">{{ planeExplanation }}</p>
                     <label class="field field-narrow">
                       <span>Step memory</span>
                       <input

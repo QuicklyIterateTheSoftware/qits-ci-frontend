@@ -417,8 +417,10 @@ export interface RepositoryEntriesResponse {
 
 /**
  * Where a runner sits relative to the platform's own network: `INTERNAL` beside the daemons this
- * deployment already runs, `EDGE` for one registered from outside it. Presentational only — this
- * client draws it as a plain fact and makes no decision on the strength of it.
+ * deployment already runs, `EDGE` for one registered from outside it. `INTERNAL` is being retired
+ * from the backend — every runner is `EDGE` now — so this client no longer offers the choice; the
+ * type stays only because the wire can still answer either value on an existing runner, and
+ * {@link CreateRunnerRequest} still sends `EDGE` explicitly. See qits-513.
  */
 export type CiRunnerPlane = 'INTERNAL' | 'EDGE';
 
@@ -470,7 +472,9 @@ export interface CiRunnerDto {
   readonly name: string;
   readonly description: string | null;
   readonly slots: number;
-  readonly plane: CiRunnerPlane;
+  /** No longer read by this client — see {@link CiRunnerPlane}; optional so an absent value (a
+   * qits-ci that has dropped the field) tolerates the same way any other retired field does. */
+  readonly plane?: CiRunnerPlane;
   readonly stepMemoryLimit?: string | null;
   readonly capabilities: CiRunnerCapabilities | null;
   readonly registered: boolean;
@@ -503,9 +507,13 @@ export interface CiRunnerCreated extends CiRunnerDto {
 
 /**
  * What `POST /ci/api/runners` takes: `name` and `slots` are the two facts a runner cannot be
- * created without; `description` and `plane` are optional here — the wire itself defaults an absent
- * `plane` to `EDGE` — though the runners page always sends its own choice explicitly.
- * `stepMemoryLimit` is sent only when one was typed: absent is the platform default.
+ * created without; `description` is optional. `plane` is no longer offered as a choice — see
+ * {@link CiRunnerPlane} — but the field stays on the wire type because `CiApi.createRunner` still
+ * sends the literal `'EDGE'`: the server only defaults an absent `plane` to `EDGE` when it knows its
+ * own public domain, and falls back to `INTERNAL` otherwise (`CiRunnerController.defaultPlane`), so
+ * omitting the field outright could still register an `INTERNAL` runner on a qits-ci with no
+ * `QITS_DOMAIN` configured. `stepMemoryLimit` is sent only when one was typed: absent is the
+ * platform default.
  */
 export interface CreateRunnerRequest {
   readonly name: string;
@@ -518,11 +526,11 @@ export interface CreateRunnerRequest {
 /**
  * What `PATCH /ci/api/runners/{id}` takes. Every field is optional; send only what changed.
  * `stepMemoryLimit` as an empty string clears it back to the platform default — absent leaves it.
+ * `plane` is not offered here any more — see {@link CiRunnerPlane} — and this client never sends it.
  */
 export interface PatchRunnerRequest {
   readonly slots?: number;
   readonly description?: string | null;
-  readonly plane?: CiRunnerPlane;
   readonly stepMemoryLimit?: string;
 }
 
