@@ -4,9 +4,12 @@ import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideQitsScope } from '@qits/ui-components';
+import { provideQitsNavigationTree, provideQitsScope } from '@qits/ui-components';
 import { routes } from '../app.routes';
 import type { CiRepositorySummaryDto, CiRunDto, ProjectDto, RepositoryDto } from '../api/dto';
+
+/** Where the fixture navigation says qits-projects answers — its own host, not this one. */
+const PROJECTS_ORIGIN = 'https://projects.qits.example';
 
 /**
  * The states table, one `it` at a time, driven through `HttpTestingController`.
@@ -96,6 +99,10 @@ describe('TreePage', () => {
         // The pages read what the address says is in scope; with no project list behind it this
         // resolves to nothing, which is the unscoped tree these specs are about.
         provideQitsScope('repository'),
+        provideQitsNavigationTree({
+          links: [],
+          applications: { 'qits-projects': { origin: PROJECTS_ORIGIN } },
+        }),
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -145,7 +152,7 @@ describe('TreePage', () => {
 
   function flushProjects(projects: readonly ProjectDto[]): void {
     http
-      .expectOne('/projects/api/projects')
+      .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`)
       .flush({ entries: projects.map((entry) => ({ project: entry })) });
   }
 
@@ -175,7 +182,7 @@ describe('TreePage', () => {
 
   function flushRepositories(projectId: string, repositories: readonly RepositoryDto[]): void {
     http
-      .expectOne(`/projects/api/projects/${projectId}/repositories`)
+      .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects/${projectId}/repositories`)
       .flush({ entries: repositories.map((entry) => ({ repository: entry })) });
   }
 
@@ -281,7 +288,7 @@ describe('TreePage', () => {
     // claimed by nobody, so one failure is reported on every row rather than hidden on one.
     flushRepositories('p1', [repository('qits-ci', 'p1')]);
     http
-      .expectOne('/projects/api/projects/p2/repositories')
+      .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects/p2/repositories`)
       .flush(null, { status: 503, statusText: 'Down' });
     await settle();
 
@@ -534,7 +541,7 @@ describe('TreePage', () => {
 
   it('shows a full-page error only when both roots fail', async () => {
     await open();
-    http.expectOne('/projects/api/projects').flush(null, { status: 500, statusText: 'Error' });
+    http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`).flush(null, { status: 500, statusText: 'Error' });
     http.expectOne('/ci/api/repositories').flush(null, { status: 500, statusText: 'Error' });
     flushSummaries();
     flushActive();
@@ -557,7 +564,7 @@ describe('TreePage', () => {
 
   it('renders the bucket alone behind a banner when projects are down but qits-ci is not', async () => {
     await open();
-    http.expectOne('/projects/api/projects').flush(null, { status: 503, statusText: 'Down' });
+    http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`).flush(null, { status: 503, statusText: 'Down' });
     flushRepositoryIds(['qits-ci']);
     flushSummaries();
     flushActive();

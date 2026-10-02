@@ -4,14 +4,18 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideLocationMocks } from '@angular/common/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideQitsNavigationLinks, provideQitsScope } from '@qits/ui-components';
+import { provideQitsNavigationTree, provideQitsScope } from '@qits/ui-components';
 import { App } from './app';
 import { routes } from './app.routes';
 
+/** Where the fixture navigation says qits-projects answers — its own host, not this one. */
+const PROJECTS_ORIGIN = 'https://projects.qits.example';
+
 /**
- * A fixture navigation, not the platform's. `provideQitsNavigationLinks` answers the layout's
+ * A fixture navigation, not the platform's. `provideQitsNavigationTree` answers the layout's
  * `QITS_NAVIGATION` from a literal, so the chrome never asks for `/main-navigation` — no request to
- * flush, and nothing pending to keep the harness from settling.
+ * flush, and nothing pending to keep the harness from settling. It also names qits-projects' origin,
+ * which is where the tree page's reads go.
  */
 const NAV = [
   { label: 'CI', href: 'https://ci.dev.example.test/' },
@@ -34,7 +38,10 @@ describe('App', () => {
         provideLocationMocks(),
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideQitsNavigationLinks(NAV),
+        provideQitsNavigationTree({
+          links: NAV,
+          applications: { 'qits-projects': { origin: PROJECTS_ORIGIN } },
+        }),
         provideQitsScope('repository'),
       ],
     });

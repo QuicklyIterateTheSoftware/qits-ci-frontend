@@ -1,12 +1,12 @@
 import { InjectionToken } from '@angular/core';
 
 /**
- * The origin every request in this app is built on, and it is empty on purpose.
+ * The origin this app's OWN reads are built on, and it is empty on purpose.
  *
- * The SPA is served at `/ci/` by qits-ci itself, behind the same gateway that serves
- * `/projects/api/…` — so a same-origin absolute path is not a shortcut, it is the whole reason the
- * browser's session cookie reaches both services with no machine token and no CORS pre-flight. A
- * configured base URL would move these calls cross-origin and lose exactly that.
+ * The SPA is served at `/ci/` by qits-ci itself, so a same-origin relative path reaches qits-ci's
+ * own `/ci/api/…` with no machine token and no CORS pre-flight. It is used only by `CiApi`:
+ * another application's API — `/projects/api/…` among them — is no longer routed on this host, so
+ * those reads go to that application's own origin via `QitsAppLinks`, not through this token.
  *
  * It is a token rather than a constant for one reason: a spec needs a seam to assert the path
  * against, and `ng serve` (no gateway in front) may want the dev proxy's prefix. That is the same

@@ -4,10 +4,13 @@ import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideQitsScope } from '@qits/ui-components';
+import { provideQitsNavigationTree, provideQitsScope } from '@qits/ui-components';
 import { routes } from '../app.routes';
 import type { CiRunDto, CiStepDto, ProjectDto } from '../api/dto';
 import { POLL_INTERVAL_MS } from './run-page';
+
+/** Where the fixture navigation says qits-projects answers — its own host, not this one. */
+const PROJECTS_ORIGIN = 'https://projects.qits.example';
 
 /**
  * The run page, and above all the poll.
@@ -72,6 +75,10 @@ describe('RunPage', () => {
         // The pages read what the address says is in scope; with no project list behind it this
         // resolves to nothing, which is the unscoped tree these specs are about.
         provideQitsScope('repository'),
+        provideQitsNavigationTree({
+          links: [],
+          applications: { 'qits-projects': { origin: PROJECTS_ORIGIN } },
+        }),
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -146,11 +153,11 @@ describe('RunPage', () => {
   ): Promise<void> {
     const projects = Object.keys(claims).map((id) => project(id, id === 'p1' ? 'qits' : id));
     http
-      .expectOne('/projects/api/projects')
+      .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`)
       .flush({ entries: projects.map((entry) => ({ project: entry })) });
     await settle();
     for (const entry of projects) {
-      http.expectOne(`/projects/api/projects/${entry.id}/repositories`).flush({
+      http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects/${entry.id}/repositories`).flush({
         entries: (claims[entry.id] ?? []).map((repoId) => ({
           repository: {
             id: repoId,
@@ -893,7 +900,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run({ projectId: 'p1', repoName: 'qits-ci' }));
     await settle();
-    http.expectOne('/projects/api/projects').flush(null, { status: 503, statusText: 'Down' });
+    http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`).flush(null, { status: 503, statusText: 'Down' });
     await settle();
 
     expect(repoLink()?.getAttribute('href')).toBe('/?project=p1&repo=qits-ci');
@@ -906,7 +913,7 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run());
     await settle();
-    http.expectOne('/projects/api/projects').flush(null, { status: 503, statusText: 'Down' });
+    http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`).flush(null, { status: 503, statusText: 'Down' });
     await settle();
 
     // Neither an owner nor a denial: a request that never answered is not evidence of either.
