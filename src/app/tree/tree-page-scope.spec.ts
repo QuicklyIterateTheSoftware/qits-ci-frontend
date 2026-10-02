@@ -5,12 +5,16 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import {
+  provideQitsNavigationTree,
   provideQitsProjectList,
   provideQitsRepositoryList,
   provideQitsScope,
 } from '@qits/ui-components';
 import { routes } from '../app.routes';
 import type { ProjectDto, RepositoryDto } from '../api/dto';
+
+/** Where the fixture navigation says qits-projects answers — its own host, not this one. */
+const PROJECTS_ORIGIN = 'https://projects.qits.example';
 
 /**
  * What a scoped address does to the tree, which is the whole of this application's scope awareness.
@@ -60,6 +64,10 @@ describe('TreePage in scope', () => {
         provideQitsProjectList([QITS, WEBSITE]),
         provideQitsRepositoryList([{ id: 'r1', name: 'qits-ci', category: 'services' }], 'r0'),
         provideQitsScope('repository'),
+        provideQitsNavigationTree({
+          links: [],
+          applications: { 'qits-projects': { origin: PROJECTS_ORIGIN } },
+        }),
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -79,7 +87,7 @@ describe('TreePage in scope', () => {
   async function open(url: string): Promise<void> {
     harness = await RouterTestingHarness.create(url);
     http
-      .expectOne('/projects/api/projects')
+      .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`)
       .flush({
         entries: [project('p1', 'qits'), project('p2', 'website')].map((p) => ({ project: p })),
       });
@@ -94,9 +102,9 @@ describe('TreePage in scope', () => {
     });
     await settle();
     http
-      .expectOne('/projects/api/projects/p1/repositories')
+      .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects/p1/repositories`)
       .flush({ entries: [{ repository: repository('r1', 'qits-ci', 'p1') }] });
-    http.expectOne('/projects/api/projects/p2/repositories').flush({ entries: [] });
+    http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects/p2/repositories`).flush({ entries: [] });
     await settle();
   }
 

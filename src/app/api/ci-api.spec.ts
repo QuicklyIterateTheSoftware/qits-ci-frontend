@@ -7,8 +7,9 @@ import type { CiRunDto } from './dto';
 /**
  * The paths and the envelopes, asserted once here so the pages' specs can be about rendering.
  *
- * These are same-origin absolute paths on purpose — the SPA is served at `/ci/` behind the gateway
- * that also serves `/projects/api/…`, and that is what carries the session cookie to both.
+ * These are same-origin absolute paths on purpose — the SPA is served at `/ci/` and these are
+ * qits-ci's own reads, so a relative path carries the session cookie with no CORS pre-flight. A
+ * read of another application's API goes to that application's own origin instead; see `ProjectsApi`.
  */
 describe('CiApi', () => {
   let api: CiApi;
