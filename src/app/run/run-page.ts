@@ -7,12 +7,14 @@ import {
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink, convertToParamMap } from '@angular/router';
 import {
   QITS_SCOPE,
   QitsButton,
+  QitsRunReports,
   QitsStepProgress,
   scopeCommands,
   type QitsStepProgressStep,
@@ -51,7 +53,7 @@ export const POLL_INTERVAL_MS = 3000;
 @Component({
   selector: 'app-run-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Async, QitsButton, QitsStepProgress, RouterLink, StatusBadge],
+  imports: [Async, QitsButton, QitsRunReports, QitsStepProgress, RouterLink, StatusBadge],
   templateUrl: './run-page.html',
   styleUrl: './run-page.css',
 })
@@ -319,6 +321,18 @@ export class RunPage {
     return updated === 0 ? '' : formatElapsed(this.now() - updated);
   });
 
+  /**
+   * The report area, read once it has rendered — the `@if (value(); as run)` above it means there
+   * is nothing to find before the first run arrives, so this is a signal rather than a plain field.
+   *
+   * `<qits-run-reports>` reads its own summaries whenever `runId` changes, so a poll re-binding the
+   * same id costs it nothing. The one thing it cannot know by itself is that **this** run just
+   * finished: a report submitted by the last QA step can land after the step's own status does, so
+   * the terminal read may still be the one request too early. `reload()` is this page's way of
+   * saying "ask again, you have more to find" — see {@link accept}.
+   */
+  private readonly reportsArea = viewChild(QitsRunReports);
+
   constructor() {
     // Independent of the run id, and cached application-wide, so it is asked for once and never
     // again while the tab lives — including across a navigation from one run to another.
@@ -416,12 +430,21 @@ export class RunPage {
 
   private accept(run: CiRunDto): void {
     const previous = this.value();
+    const justTurnedTerminal =
+      previous !== null && !isTerminal(previous.status) && isTerminal(run.status);
     this.run.set(ready(run));
     this.updatedAt.set(Date.now());
     if (isTerminal(run.status)) {
       // The run stopped, so "Cancelling…" is no longer true of anything on screen. The status badge
       // and the missing cancel button say the rest.
       this.cancelRequested.set(false);
+    }
+    if (justTurnedTerminal) {
+      // Once, on the RUNNING/QUEUED → terminal edge — never on every poll tick, which is what
+      // `<qits-run-reports>`'s own runId-keyed read already covers for free. `previous` is only
+      // ever null on the very first read of a run that opened already terminal, and that case needs
+      // no reload: the area's first bind reads the current reports itself.
+      this.reportsArea()?.reload();
     }
     if (run.live && run.live.stepIndex !== previous?.live?.stepIndex) {
       this.liveSince.set(Date.now());

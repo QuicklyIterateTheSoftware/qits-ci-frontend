@@ -4,13 +4,45 @@ import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideQitsNavigationTree, provideQitsScope } from '@qits/ui-components';
+import {
+  provideQitsNavigationTree,
+  provideQitsScope,
+  QitsReportsClient,
+  QitsRunReports,
+  type QitsRunReportsDto,
+} from '@qits/ui-components';
+import { of } from 'rxjs';
 import { routes } from '../app.routes';
 import type { CiRunDto, CiStepDto, ProjectDto } from '../api/dto';
 import { POLL_INTERVAL_MS } from './run-page';
 
 /** Where the fixture navigation says qits-projects answers — its own host, not this one. */
 const PROJECTS_ORIGIN = 'https://projects.qits.example';
+
+/**
+ * A stand-in for the library's own HTTP client, so this suite's many `http.verify()` assertions
+ * stay about *this page's* requests. `<qits-run-reports>` is a real component from
+ * `@qits/ui-components` — swapping only the client it reads through, as the library's own docs
+ * recommend (`{ provide: QitsReportsClient, useValue: … }`), is enough to keep every report read
+ * off `HttpTestingController` entirely, without a second fake component to keep in step with the
+ * real one's template.
+ */
+function fakeReportsClient(runId: string): QitsReportsClient {
+  const empty: QitsRunReportsDto = {
+    runId,
+    commitSha: '',
+    releaseRequestId: null,
+    baseline: null,
+    reports: [],
+  };
+  return {
+    origin: () => of(''),
+    runReports: vi.fn(() => of(empty)),
+    report: vi.fn(),
+    baseline: vi.fn(() => of(null)),
+    baselineReports: vi.fn(() => of([])),
+  } as unknown as QitsReportsClient;
+}
 
 /**
  * The run page, and above all the poll.
@@ -28,6 +60,7 @@ const PROJECTS_ORIGIN = 'https://projects.qits.example';
 describe('RunPage', () => {
   let http: HttpTestingController;
   let harness: RouterTestingHarness;
+  let reportsClient: QitsReportsClient;
 
   const step = (stepIndex: number, over: Partial<CiStepDto> = {}): CiStepDto => ({
     stepIndex,
@@ -66,6 +99,7 @@ describe('RunPage', () => {
   });
 
   beforeEach(() => {
+    reportsClient = fakeReportsClient('da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61');
     TestBed.configureTestingModule({
       providers: [
         provideRouter(routes),
@@ -79,6 +113,10 @@ describe('RunPage', () => {
           links: [],
           applications: { 'qits-projects': { origin: PROJECTS_ORIGIN } },
         }),
+        // Every spec mounts `<qits-run-reports>`, so every spec gets this fake — not only the ones
+        // below that assert something about it — or the rest would have to answer a request
+        // `http.verify()` was never told to expect.
+        { provide: QitsReportsClient, useValue: reportsClient },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -920,5 +958,76 @@ describe('RunPage', () => {
     expect(text()).not.toContain('project qits');
     expect(text()).not.toContain('not claimed by any project');
     expect(repoLink()?.getAttribute('href')).toBe('/?repo=qits-ci');
+  });
+
+  // --- the report area ---
+
+  it('hosts the generic report area below the steps, bound to the route’s run id', async () => {
+    await open();
+    expectRun().flush(run());
+    await settle();
+    await flushAttribution();
+
+    const area = page().querySelector('qits-run-reports');
+    expect(area).not.toBeNull();
+    // The element sits after the steps section in document order, as the task names it.
+    const steps = page().querySelector('.steps');
+    expect(steps?.compareDocumentPosition(area!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // Bound to this page's own run id — the component reads through the client, so the id it was
+    // asked for is the proof of the binding rather than an attribute the component need not reflect.
+    expect(reportsClient.runReports).toHaveBeenCalledWith('da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61');
+  });
+
+  /**
+   * The failure mode this guards against is the mirror image of the poll's own: not polling too
+   * often, but telling the report area to re-read too often. `reload()` exists for exactly one
+   * edge — the run went from in flight to done — and calling it on every tick while still RUNNING,
+   * or again on ticks after the run already finished, would be indistinguishable from correct until
+   * somebody watched the network tab.
+   */
+  it('reloads the report area once on the RUNNING → terminal transition, and not on every poll tick', async () => {
+    useIntervalFakes();
+    const reload = vi.spyOn(QitsRunReports.prototype, 'reload');
+    try {
+      await open();
+      expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
+      await settle();
+      await flushAttribution();
+      expect(reload).not.toHaveBeenCalled();
+
+      // Still RUNNING: the tick must not call reload.
+      await tick(POLL_INTERVAL_MS);
+      expectRun().flush(run({ status: 'RUNNING', finishedAt: null }));
+      await settle();
+      expect(reload).not.toHaveBeenCalled();
+
+      // The RUNNING → terminal edge: exactly one call.
+      await tick(POLL_INTERVAL_MS);
+      expectRun().flush(run());
+      await settle();
+      expect(reload).toHaveBeenCalledTimes(1);
+
+      // Terminal already stops the poll outright, so there is nothing further to call reload on —
+      // this just confirms the count never creeps up regardless.
+      await tick(POLL_INTERVAL_MS * 3);
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      reload.mockRestore();
+    }
+  });
+
+  /** A run that arrives already terminal needs no reload: the area's own first read covers it. */
+  it('does not reload the report area for a run that was already terminal on arrival', async () => {
+    const reload = vi.spyOn(QitsRunReports.prototype, 'reload');
+    try {
+      await open();
+      expectRun().flush(run());
+      await settle();
+      await flushAttribution();
+
+      expect(reload).not.toHaveBeenCalled();
+    } finally {
+      reload.mockRestore();
+    }
   });
 });

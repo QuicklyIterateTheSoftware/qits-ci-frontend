@@ -6,13 +6,14 @@ import {
   provideQitsNavigation,
   provideQitsProjects,
   provideQitsScope,
+  provideQitsStandardReportKinds,
 } from '@qits/ui-components';
 
 import { routes } from './app.routes';
 
 /**
- * Seven providers, in the order spa-home documents. The third arrived with this application — it
- * was the platform's first SPA to make a request — and the last three now make requests of their
+ * Eight providers, in the order spa-home documents. The third arrived with this application — it
+ * was the platform's first SPA to make a request — and the last four now make requests of their
  * own.
  *
  * - `provideBrowserGlobalErrorListeners` funnels genuinely-global errors and unhandled rejections
@@ -42,6 +43,11 @@ import { routes } from './app.routes';
  *   means the same thing in every SPA, and an operator who has navigated away from the tree has not
  *   stopped caring what is building. Nothing is asked while the panel is closed; it polls only for
  *   as long as one is open.
+ * - `provideQitsStandardReportKinds` registers the two shipped report kinds — `test-results` and
+ *   `coverage` — with `QITS_REPORT_KINDS`, so the run page's `<qits-run-reports>` has a component to
+ *   draw for each instead of falling back to "no view for this report kind here". It needs no
+ *   `provideHttpClient` of its own: the area it feeds reads through `QitsReportsClient`, which uses
+ *   the one installed above.
  */
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -52,5 +58,6 @@ export const appConfig: ApplicationConfig = {
     provideQitsProjects(),
     provideQitsScope('repository'),
     provideQitsBuilds(),
+    provideQitsStandardReportKinds(),
   ],
 };

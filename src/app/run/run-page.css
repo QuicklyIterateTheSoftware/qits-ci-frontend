@@ -205,3 +205,12 @@
 .output-live {
   border-left: 3px solid #2563eb;
 }
+
+.reports {
+  margin-top: 1.5rem;
+}
+
+.reports h2 {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}

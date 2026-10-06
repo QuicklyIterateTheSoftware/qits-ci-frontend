@@ -259,4 +259,22 @@
       }
     </ol>
   </section>
+
+  <!--
+    Below the steps for every run, as the task names it — a run carries one set of reports
+    regardless of status, and "Not reported" (the library's own fallback) is as much an answer as a
+    coverage figure is.
+
+    Every open step pane is capped at `max-height: 26rem` with its own scrollbar (`.output` in
+    run-page.css), so a run with many steps, or a long log, never stretches this section an
+    unbounded distance down the page — only one pane is open by default (`stepsInitialised`), so a
+    narrow screen reaches this heading after at most a short list of step rows plus that one capped
+    pane, not after scrolling through the log itself. `<qits-run-reports>` draws its own highlights
+    strip first, right under this heading, which is what keeps it readable at that position: nothing
+    about the steps' own logs stands between a reader and it.
+  -->
+  <section class="reports">
+    <h2>Reports</h2>
+    <qits-run-reports [runId]="runId()" />
+  </section>
 }
