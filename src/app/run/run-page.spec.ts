@@ -9,8 +9,10 @@ import {
   provideQitsRepositoryList,
   provideQitsScope,
   provideQitsStandardReportKinds,
+  QITS_MERMAID_LOADER,
   QitsReportsClient,
   QitsRunReports,
+  type QitsEntityChangesPayload,
   type QitsReport,
   type QitsRunReportsDto,
   type QitsTestFailure,
@@ -91,6 +93,68 @@ function fakeReportsClientWithFailures(
     },
     suites: [],
     failures,
+    truncated: false,
+  };
+  const report: QitsReport = { ...summary, payload };
+  return {
+    origin: () => of(''),
+    runReports: vi.fn(() => of(runReportsDto)),
+    report: vi.fn(() => of(report)),
+    baseline: vi.fn(() => of(null)),
+    baselineReports: vi.fn(() => of([])),
+  } as unknown as QitsReportsClient;
+}
+
+/**
+ * Like {@link fakeReportsClientWithFailures}, but the run carries one `entity-changes` v1 report
+ * (qits-760): a single CHANGED unit `ci`, with both a `before` and an `after` mermaid definition —
+ * the smallest payload that still exercises the Before/After switch the kind's view draws.
+ */
+function fakeReportsClientWithEntityChanges(runId: string): QitsReportsClient {
+  const summary = {
+    id: 'report-entity-1',
+    kind: 'entity-changes',
+    kindVersion: 1,
+    stepIndex: 0,
+    highlights: [],
+    baselineRunId: null,
+    baselineVersion: '2026.1003.52637',
+    payloadBytes: 1,
+    submittedAt: '2026-07-31T14:02:11Z',
+  };
+  const runReportsDto: QitsRunReportsDto = {
+    runId,
+    commitSha: '9f2c1ab3d4e5',
+    releaseRequestId: null,
+    baseline: null,
+    reports: [summary],
+  };
+  const payload: QitsEntityChangesPayload = {
+    baseline: { version: '2026.1003.52637', tagSha: '9f2c1ab3d4e5', hadDiagram: true },
+    units: [
+      {
+        file: 'docs/database/ci.md',
+        unit: 'ci',
+        status: 'CHANGED',
+        tables: [
+          {
+            name: 'ci_report',
+            status: 'CHANGED',
+            origin: 'ci',
+            columns: {
+              added: [],
+              removed: [],
+              changed: [
+                { name: 'kind', before: 'string, not null, 64', after: 'string, not null, 128' },
+              ],
+            },
+          },
+        ],
+        relations: { added: [], removed: [] },
+        before: 'erDiagram\n  ci_report {\n    string kind "not null, length 64"\n  }\n',
+        after: 'erDiagram\n  ci_report {\n    string kind "not null, length 128"\n  }\n',
+      },
+    ],
     truncated: false,
   };
   const report: QitsReport = { ...summary, payload };
@@ -1240,6 +1304,63 @@ describe('RunPage', () => {
       expect(excerpt?.querySelector('ol')?.getAttribute('start')).toBe('3');
       expect(excerpt?.textContent).toContain('refusesAnotherRunsToken');
       expect(excerpt?.textContent).toContain('assertEquals(403, status)');
+    });
+  });
+
+  // --- the entity-changes report (qits-760): the Entities section once the library registers it ---
+
+  describe('the entity-changes report once @qits/ui-components registers it', () => {
+    /**
+     * A fresh `TestBed`, the same way the test-code-preview describe above needs one: this is the
+     * one place in this file that provides `provideQitsStandardReportKinds()`, which is what turns
+     * the `entity-changes` summary below into the `Entities` section instead of the generic "no
+     * view for this report kind here" fallback every other spec in this file exercises implicitly.
+     */
+    beforeEach(() => {
+      TestBed.resetTestingModule();
+      reportsClient = fakeReportsClientWithEntityChanges('da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61');
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter(routes),
+          provideLocationMocks(),
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideQitsScope('repository'),
+          provideQitsNavigationTree({
+            links: [],
+            applications: { 'qits-projects': { origin: PROJECTS_ORIGIN } },
+          }),
+          provideQitsStandardReportKinds(),
+          // `QitsMermaidDiagram` lazily `import()`s the real mermaid to draw the Before/After
+          // diagrams once the section opens; this spec is about the registration reaching the
+          // page, not about mermaid's own rendering, so the loader is replaced with a stub that
+          // resolves without ever touching the real chunk — the library's own documented seam.
+          {
+            provide: QITS_MERMAID_LOADER,
+            useValue: () =>
+              Promise.resolve({
+                initialize: () => {
+                  // no-op: nothing here needs a real theme or security level applied.
+                },
+                render: () => Promise.resolve({ svg: '<svg></svg>' }),
+              }),
+          },
+          { provide: QitsReportsClient, useValue: reportsClient },
+        ],
+      });
+      http = TestBed.inject(HttpTestingController);
+    });
+
+    it('renders the Entities section for a run reporting entity-changes, with no "no view" fallback', async () => {
+      await open();
+      expectRun().flush(run());
+      await settle();
+      await flushAttribution();
+
+      await click('Entities');
+
+      expect(page().querySelector('qits-entity-changes-report')).not.toBeNull();
+      expect(text()).not.toContain('No view for this report kind here');
     });
   });
 });
