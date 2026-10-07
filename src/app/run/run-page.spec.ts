@@ -6,10 +6,15 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import {
   provideQitsNavigationTree,
+  provideQitsRepositoryList,
   provideQitsScope,
+  provideQitsStandardReportKinds,
   QitsReportsClient,
   QitsRunReports,
+  type QitsReport,
   type QitsRunReportsDto,
+  type QitsTestFailure,
+  type QitsTestResultsPayload,
 } from '@qits/ui-components';
 import { of } from 'rxjs';
 import { routes } from '../app.routes';
@@ -18,6 +23,9 @@ import { POLL_INTERVAL_MS } from './run-page';
 
 /** Where the fixture navigation says qits-projects answers — its own host, not this one. */
 const PROJECTS_ORIGIN = 'https://projects.qits.example';
+
+/** Where the fixture navigation says qits-githost answers, for the test-code preview below. */
+const GITHOST_ORIGIN = 'https://githost.qits.example';
 
 /**
  * A stand-in for the library's own HTTP client, so this suite's many `http.verify()` assertions
@@ -39,6 +47,57 @@ function fakeReportsClient(runId: string): QitsReportsClient {
     origin: () => of(''),
     runReports: vi.fn(() => of(empty)),
     report: vi.fn(),
+    baseline: vi.fn(() => of(null)),
+    baselineReports: vi.fn(() => of([])),
+  } as unknown as QitsReportsClient;
+}
+
+/**
+ * Like {@link fakeReportsClient}, but the run carries one `test-results` report whose payload is
+ * handed back the moment its section opens — `of(...)`, not `HttpTestingController`, the same as
+ * every other report read in this file. Only the githost read an opened failure triggers below is
+ * real, because that one goes through `HttpClient` rather than through this fake.
+ */
+function fakeReportsClientWithFailures(
+  runId: string,
+  failures: readonly QitsTestFailure[],
+): QitsReportsClient {
+  const summary = {
+    id: 'report-1',
+    kind: 'test-results',
+    kindVersion: 1,
+    stepIndex: 0,
+    highlights: [],
+    baselineRunId: null,
+    baselineVersion: null,
+    payloadBytes: 1,
+    submittedAt: '2026-07-31T14:02:11Z',
+  };
+  const runReportsDto: QitsRunReportsDto = {
+    runId,
+    commitSha: '9f2c1ab3d4e5',
+    releaseRequestId: null,
+    baseline: null,
+    reports: [summary],
+  };
+  const payload: QitsTestResultsPayload = {
+    totals: {
+      tests: failures.length,
+      passed: 0,
+      failed: failures.length,
+      errored: 0,
+      skipped: 0,
+      durationMs: null,
+    },
+    suites: [],
+    failures,
+    truncated: false,
+  };
+  const report: QitsReport = { ...summary, payload };
+  return {
+    origin: () => of(''),
+    runReports: vi.fn(() => of(runReportsDto)),
+    report: vi.fn(() => of(report)),
     baseline: vi.fn(() => of(null)),
     baselineReports: vi.fn(() => of([])),
   } as unknown as QitsReportsClient;
@@ -938,7 +997,9 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run({ projectId: 'p1', repoName: 'qits-ci' }));
     await settle();
-    http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`).flush(null, { status: 503, statusText: 'Down' });
+    http
+      .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`)
+      .flush(null, { status: 503, statusText: 'Down' });
     await settle();
 
     expect(repoLink()?.getAttribute('href')).toBe('/?project=p1&repo=qits-ci');
@@ -951,7 +1012,9 @@ describe('RunPage', () => {
     await open();
     expectRun().flush(run());
     await settle();
-    http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`).flush(null, { status: 503, statusText: 'Down' });
+    http
+      .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`)
+      .flush(null, { status: 503, statusText: 'Down' });
     await settle();
 
     // Neither an owner nor a denial: a request that never answered is not evidence of either.
@@ -1029,5 +1092,154 @@ describe('RunPage', () => {
     } finally {
       reload.mockRestore();
     }
+  });
+
+  // --- the test code preview: the failure insights `provideQitsStandardReportKinds` now installs ---
+
+  /**
+   * One located failure — java/surefire, with a file and both ends of a line range, which is what
+   * `QitsCodePreviewInsight` needs to draw the method's lines once the failure is opened. Its
+   * repository names the run's own `repoId` — `qits-ci` — so `provideQitsRepositoryList` below can
+   * resolve it to an id with no project in scope at all: these specs open the run at its bare
+   * address, `/runs/<id>`, the same as every other test in this file.
+   */
+  function locatedFailure(): QitsTestFailure {
+    return {
+      coordinates: {
+        language: 'java',
+        tool: 'surefire',
+        repository: { projectId: 'p1', name: 'qits-ci' },
+        commitSha: '9f2c1ab3d4e5',
+        file: 'service/src/test/java/eu/wohlben/qits/ci/api/CiReportResourceTest.java',
+        className: 'eu.wohlben.qits.ci.api.CiReportResourceTest',
+        testName: 'refusesAnotherRunsToken',
+        lineStart: 3,
+        lineEnd: 5,
+      },
+      shape: 'ASSERTION',
+      failureType: 'org.opentest4j.AssertionFailedError',
+      message: 'expected: <403> but was: <204>',
+      stackTrace: 'at CiReportResourceTest.refusesAnotherRunsToken(CiReportResourceTest.java:4)',
+      durationMs: 120,
+    };
+  }
+
+  const FAILURE_FILE = 'service/src/test/java/eu/wohlben/qits/ci/api/CiReportResourceTest.java';
+
+  /** The method `locatedFailure`'s lines 3–5 point at. */
+  const METHOD_SOURCE =
+    [
+      'package eu.wohlben.qits.ci.api;',
+      '',
+      'void refusesAnotherRunsToken() {',
+      '  assertEquals(403, status);',
+      '}',
+    ].join('\n') + '\n';
+
+  describe('the test code preview a located failure opens', () => {
+    const FILE_URL = `${GITHOST_ORIGIN}/githost/api/repositories/qits-ci/file`;
+
+    /**
+     * A fresh `TestBed`: the outer `beforeEach` already instantiated one, and these specs need a
+     * different `QitsReportsClient` — one carrying a `test-results` report — plus two providers
+     * none of the specs above need: `qits-githost`'s origin, so the preview knows where to read the
+     * file from, and a repository listing, so the failure's repository resolves to an id at all.
+     */
+    beforeEach(() => {
+      TestBed.resetTestingModule();
+      reportsClient = fakeReportsClientWithFailures('da4a3f0e-11c2-4f7a-9b03-2ee45c1f8d61', [
+        locatedFailure(),
+      ]);
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter(routes),
+          provideLocationMocks(),
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideQitsScope('repository'),
+          provideQitsNavigationTree({
+            links: [],
+            applications: {
+              'qits-projects': { origin: PROJECTS_ORIGIN },
+              'qits-githost': { origin: GITHOST_ORIGIN },
+            },
+          }),
+          // The other specs in this file never open a section, so they never needed the registry
+          // that draws one; this is what turns the `test-results` summary below into the `Tests`
+          // section and brings the failure insights — the code preview included — along with it.
+          provideQitsStandardReportKinds(),
+          provideQitsRepositoryList([
+            { id: 'qits-ci', name: 'qits-ci', component: 'qits-ci', category: 'services' },
+          ]),
+          { provide: QitsReportsClient, useValue: reportsClient },
+        ],
+      });
+      http = TestBed.inject(HttpTestingController);
+    });
+
+    /** Open the run, flush it and the attribution, then open the one `Tests` section it carries. */
+    async function openWithTestsSection(): Promise<void> {
+      await open();
+      expectRun().flush(run());
+      await settle();
+      await flushAttribution();
+      await click('Tests');
+    }
+
+    /**
+     * Opening the failure starts `QitsSourceFiles`' read, which registers a `PendingTasks` entry
+     * that only clears once the githost response lands — so `settle()`'s `whenStable()` would hang
+     * here for exactly the request this test means to assert on first. A synchronous click plus one
+     * `detectChanges()`, the same pairing `code-preview-insight.spec.ts` uses, is enough: the effect
+     * that issues the request runs inside that same change-detection pass.
+     */
+    function openFailure(label: string): void {
+      const target = buttons().find((button) => (button.textContent ?? '').includes(label));
+      expect(target, `no button reading "${label}"`).toBeTruthy();
+      target?.click();
+      harness.fixture.detectChanges();
+    }
+
+    it('renders the located failure once its report section is opened', async () => {
+      await openWithTestsSection();
+
+      expect(text()).toContain('refusesAnotherRunsToken');
+      expect(text()).toContain('expected: <403> but was: <204>');
+    });
+
+    it('reads githost only once the failure itself is opened, exactly once, with the session', async () => {
+      await openWithTestsSection();
+
+      // The section is open and the failure is drawn, but nothing has gone to githost yet.
+      http.expectNone((request) => request.url === FILE_URL);
+
+      openFailure('expected: <403> but was: <204>');
+      const read = http.expectOne((request) => request.url === FILE_URL);
+      expect(read.request.method).toBe('GET');
+      expect(read.request.withCredentials).toBe(true);
+      expect(read.request.params.get('rev')).toBe('9f2c1ab3d4e5');
+      expect(read.request.params.get('path')).toBe(FAILURE_FILE);
+      http.verify();
+    });
+
+    it('draws the excerpt from the flushed file, starting at lineStart and showing the method', async () => {
+      await openWithTestsSection();
+      openFailure('expected: <403> but was: <204>');
+      http
+        .expectOne((request) => request.url === FILE_URL)
+        .flush({
+          path: FAILURE_FILE,
+          binary: false,
+          size: METHOD_SOURCE.length,
+          content: METHOD_SOURCE,
+        });
+      await settle();
+
+      const excerpt = page().querySelector('qits-code-excerpt');
+      expect(excerpt).not.toBeNull();
+      expect(excerpt?.querySelector('ol')?.getAttribute('start')).toBe('3');
+      expect(excerpt?.textContent).toContain('refusesAnotherRunsToken');
+      expect(excerpt?.textContent).toContain('assertEquals(403, status)');
+    });
   });
 });

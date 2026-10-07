@@ -47,7 +47,8 @@ import { routes } from './app.routes';
  *   `coverage` — with `QITS_REPORT_KINDS`, so the run page's `<qits-run-reports>` has a component to
  *   draw for each instead of falling back to "no view for this report kind here". It needs no
  *   `provideHttpClient` of its own: the area it feeds reads through `QitsReportsClient`, which uses
- *   the one installed above.
+ *   the one installed above. It now also installs `provideQitsStandardFailureInsights()`, so opening
+ *   a located failure in the `test-results` view draws its test code, read from qits-githost.
  */
 export const appConfig: ApplicationConfig = {
   providers: [
