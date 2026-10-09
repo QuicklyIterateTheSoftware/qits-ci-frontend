@@ -448,6 +448,93 @@ export interface CiRunnerHealthcheckDto {
 }
 
 /**
+ * What `POST /ci/api/runners/{id}/healthcheck` answers: the run it queued, and — additively,
+ * qits-896 — the id the full node report {@link CiApi.runnerHealth} will eventually carry.
+ *
+ * `requestId` is optional and nullable for the two different reasons every field added after the
+ * fact on this client is: an older qits-ci answers nothing here, and a runner that is not connected
+ * right now has nothing to be asked over, so qits-ci queues no request to match against and answers
+ * `null` rather than inventing one.
+ */
+export interface RunnerHealthcheckResponse {
+  readonly runId: string;
+  readonly requestId?: string | null;
+}
+
+/**
+ * One named check inside a runner's node health report — qits-896, `GET
+ * /ci/api/runners/{id}/health`. `docker`, `session`, `buildkit`, `network`, `idRange` and
+ * `stepImage` carry a small free-form `data`; `nodeInventory`'s is the one shape this client knows,
+ * {@link CiNodeInventoryDto} — see {@link CiRunnerHealthDto.dataOmitted} for when `data` is absent
+ * instead.
+ */
+export interface CiRunnerCheckReport {
+  readonly name: string;
+  readonly ok: boolean;
+  readonly detail: string;
+  readonly data: Readonly<Record<string, unknown>> | null;
+}
+
+/** The containers `nodeInventory` reports, one per container on the runner's node. */
+export interface CiNodeInventoryContainerDto {
+  readonly name: string;
+  readonly id: string;
+  readonly rowId: string | null;
+  readonly state: string;
+  readonly startedAt: string | null;
+  readonly finishedAt: string | null;
+  readonly exitCode: number | null;
+  readonly image: string;
+}
+
+/** One volume `nodeInventory` reports. */
+export interface CiNodeInventoryVolumeDto {
+  readonly name: string;
+  readonly rowId: string | null;
+  readonly createdAt: string | null;
+}
+
+/** The runner's own container, as `nodeInventory` reports it. */
+export interface CiNodeInventoryRunnerContainerDto {
+  readonly name: string;
+  readonly id: string;
+  readonly version: string | null;
+  readonly startedAt: string | null;
+}
+
+/**
+ * `nodeInventory`'s `data`: the node's containers and volumes, and the runner's own container —
+ * `null` when the runner is not itself running as one of them (every field may be null besides).
+ */
+export interface CiNodeInventoryDto {
+  readonly containers: readonly CiNodeInventoryContainerDto[];
+  readonly volumes: readonly CiNodeInventoryVolumeDto[];
+  readonly runnerContainer: CiNodeInventoryRunnerContainerDto | null;
+}
+
+/**
+ * The full node health report `GET /ci/api/runners/{id}/health` answers — qits-896. Unlike
+ * {@link CiRunnerHealthcheckDto}, the summary the runner list already carries, this is every check
+ * qits-ci ran, each with its own structured `data`.
+ *
+ * `requestId` is the id {@link RunnerHealthcheckResponse} answers when an on-demand check queued
+ * this report, and `null` for one taken on the runner's own schedule. `dataOmitted` is true when
+ * qits-ci chose not to carry a check's `data` on the wire — a report with it true still has every
+ * check's `name`, `ok` and `detail`, just not the extra.
+ *
+ * The whole object is **absent** — a bare 204 — rather than any of this being null, when the runner
+ * has never reported at all; see {@link CiApi.runnerHealth} for how that is read.
+ */
+export interface CiRunnerHealthDto {
+  readonly at: string;
+  readonly ok: boolean;
+  readonly detail: string;
+  readonly requestId: string | null;
+  readonly dataOmitted: boolean;
+  readonly checks: readonly CiRunnerCheckReport[];
+}
+
+/**
  * A runner qits-ci knows about, whether or not it has ever connected.
  *
  * `registered` and `connected` are two different facts and both are drawn: a runner can be

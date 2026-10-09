@@ -126,6 +126,14 @@
               } @else {
                 <span class="fact healthcheck-none">{{ none }}</span>
               }
+              <button
+                type="button"
+                class="report-toggle"
+                [attr.aria-expanded]="isReportOpen(runner)"
+                (click)="toggleReport(runner)"
+              >
+                {{ isReportOpen(runner) ? 'Hide node report' : 'Node report' }}
+              </button>
               <span class="spring"></span>
               <button
                 type="button"
@@ -149,6 +157,122 @@
                   }
                 </ul>
               }
+            }
+
+            @if (isReportOpen(runner)) {
+              <section class="report" aria-label="Node health report">
+                <app-async
+                  [state]="reportState(runner)"
+                  loadingLabel="Loading node report"
+                  errorLabel="Could not load the node report"
+                  (retry)="retryReport(runner)"
+                />
+                @if (reportState(runner); as reportLoad) {
+                  @if (reportLoad.kind === 'ready') {
+                    @if (reportLoad.value; as report) {
+                      <div class="report-summary">
+                        <qits-badge
+                          [label]="report.ok ? 'healthy' : 'unhealthy'"
+                          [tone]="report.ok ? 'success' : 'danger'"
+                        />
+                        <span class="fact">{{ formatAgo(report.at) }}</span>
+                        <span class="fact report-detail">{{ report.detail }}</span>
+                        @if (report.dataOmitted) {
+                          <span class="fact">some checks' data was omitted</span>
+                        }
+                      </div>
+                      @if (reportDisplay(report); as display) {
+                        <ul class="checks">
+                          @for (entry of display.checks; track entry.check.name) {
+                            <li class="check" [class.check-failed]="entry.check.tone === 'danger'">
+                              <span class="check-name">{{ entry.check.name }}</span>
+                              <qits-badge [label]="entry.check.label" [tone]="entry.check.tone" />
+                              <span class="fact check-detail">{{ entry.check.detail }}</span>
+                              @if (entry.entries.length > 0) {
+                                <dl class="entries">
+                                  @for (field of entry.entries; track field[0]) {
+                                    <div class="entry">
+                                      <dt>{{ field[0] }}</dt>
+                                      <dd>{{ field[1] }}</dd>
+                                    </div>
+                                  }
+                                </dl>
+                              }
+                            </li>
+                          }
+                        </ul>
+                        @if (display.inventory; as inventory) {
+                          @if (inventory.runnerContainer; as runnerContainer) {
+                            <p class="runner-container">
+                              Runner container: {{ runnerContainer.name }}
+                              @if (runnerContainer.version) {
+                                v{{ runnerContainer.version }}
+                              }
+                              — started {{ formatAgo(runnerContainer.startedAt) }}
+                            </p>
+                          }
+                          <h3>Containers</h3>
+                          @if (inventory.containers.length === 0) {
+                            <p class="fact">No containers on this node.</p>
+                          } @else {
+                            <table class="inventory-table containers">
+                              <thead>
+                                <tr>
+                                  <th>Name</th>
+                                  <th>State</th>
+                                  <th>Started</th>
+                                  <th>Finished</th>
+                                  <th>Exit</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @for (container of inventory.containers; track container.id) {
+                                  <tr>
+                                    <td>{{ container.name }}</td>
+                                    <td>{{ container.state }}</td>
+                                    <td>{{ formatAgo(container.startedAt) }}</td>
+                                    <td>
+                                      {{
+                                        container.finishedAt
+                                          ? formatAgo(container.finishedAt)
+                                          : none
+                                      }}
+                                    </td>
+                                    <td>{{ container.exitCode ?? none }}</td>
+                                  </tr>
+                                }
+                              </tbody>
+                            </table>
+                          }
+                          <h3>Volumes</h3>
+                          @if (inventory.volumes.length === 0) {
+                            <p class="fact">No volumes on this node.</p>
+                          } @else {
+                            <table class="inventory-table volumes">
+                              <thead>
+                                <tr>
+                                  <th>Name</th>
+                                  <th>Created</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @for (volume of inventory.volumes; track volume.name) {
+                                  <tr>
+                                    <td>{{ volume.name }}</td>
+                                    <td>{{ formatAgo(volume.createdAt) }}</td>
+                                  </tr>
+                                }
+                              </tbody>
+                            </table>
+                          }
+                        }
+                      }
+                    } @else {
+                      <p class="fact">No node report yet — this runner has never reported.</p>
+                    }
+                  }
+                }
+              </section>
             }
 
             @if (isRowOpen(runner.id)) {

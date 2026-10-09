@@ -867,4 +867,113 @@ describe('RunnersPage', () => {
     expect(text()).toContain('409 a check is already running');
     expect(buttons('Run health check')[0].disabled).toBe(false);
   });
+
+  // --- the node health report — qits-896 ---
+
+  it('loads and renders the node report once opened: every check with its name, passed/failed and detail', async () => {
+    mount();
+    flushRunners([runner()]);
+    await settle();
+
+    expect(buttons('Hide node report').length).toBe(0);
+    buttons('Node report')[0].click();
+    await settle();
+
+    const request = http.expectOne('/ci/api/runners/r1/health');
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      at: new Date(Date.now() - 5_000).toISOString(),
+      ok: false,
+      detail: 'one check failed',
+      requestId: null,
+      dataOmitted: false,
+      checks: [
+        { name: 'docker', ok: true, detail: 'docker reachable', data: { version: '24.0' } },
+        { name: 'session', ok: false, detail: 'no session established', data: null },
+      ],
+    });
+    await settle();
+
+    expect(text()).toContain('one check failed');
+    expect(text()).toContain('docker');
+    expect(text()).toContain('docker reachable');
+    expect(text()).toContain('session');
+    expect(text()).toContain('no session established');
+    expect(buttons('Hide node report').length).toBe(1);
+  });
+
+  it('renders nodeInventory’s containers, volumes and runner container compactly', async () => {
+    mount();
+    flushRunners([runner()]);
+    await settle();
+
+    buttons('Node report')[0].click();
+    await settle();
+
+    http.expectOne('/ci/api/runners/r1/health').flush({
+      at: new Date().toISOString(),
+      ok: true,
+      detail: 'all checks passed',
+      requestId: null,
+      dataOmitted: false,
+      checks: [
+        {
+          name: 'nodeInventory',
+          ok: true,
+          detail: '1 container, 1 volume',
+          data: {
+            containers: [
+              {
+                name: 'step-1',
+                id: 'c1',
+                rowId: 'row1',
+                state: 'running',
+                startedAt: new Date(Date.now() - 10_000).toISOString(),
+                finishedAt: null,
+                exitCode: null,
+                image: 'alpine',
+              },
+            ],
+            volumes: [
+              {
+                name: 'vol-1',
+                rowId: 'rv1',
+                createdAt: new Date(Date.now() - 20_000).toISOString(),
+              },
+            ],
+            runnerContainer: {
+              name: 'runner-container',
+              id: 'rc1',
+              version: '1.2.3',
+              startedAt: new Date(Date.now() - 30_000).toISOString(),
+            },
+          },
+        },
+      ],
+    });
+    await settle();
+
+    expect(text()).toContain('nodeInventory');
+    expect(text()).toContain('step-1');
+    expect(text()).toContain('running');
+    expect(text()).toContain('vol-1');
+    expect(text()).toContain('Runner container: runner-container');
+    expect(text()).toContain('v1.2.3');
+  });
+
+  it('says there is no node report yet for a runner that has never reported — a 204', async () => {
+    mount();
+    flushRunners([runner()]);
+    await settle();
+
+    buttons('Node report')[0].click();
+    await settle();
+
+    http
+      .expectOne('/ci/api/runners/r1/health')
+      .flush(null, { status: 204, statusText: 'No Content' });
+    await settle();
+
+    expect(text()).toContain('No node report yet');
+  });
 });

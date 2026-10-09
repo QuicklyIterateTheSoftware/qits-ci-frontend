@@ -182,4 +182,60 @@ describe('CiApi', () => {
       .flush({ message: 'This runner still holds 2 runs' }, { status: 409, statusText: 'Conflict' });
     await expect(deleted).rejects.toBeInstanceOf(HttpErrorResponse);
   });
+
+  // --- the on-demand health check and the node health report it feeds — qits-896 ---
+
+  it('queues a health check with a POST and answers the run id plus the requestId to match against', async () => {
+    const queued = api.runRunnerHealthcheck('r1');
+    const request = http.expectOne('/ci/api/runners/r1/healthcheck');
+    expect(request.request.method).toBe('POST');
+    request.flush({ runId: 'run-99', requestId: 'req-1' }, { status: 202, statusText: 'Accepted' });
+    await expect(queued).resolves.toEqual({ runId: 'run-99', requestId: 'req-1' });
+  });
+
+  it('tolerates a healthcheck response with no requestId — a runner not connected to be asked over', async () => {
+    const queued = api.runRunnerHealthcheck('r1');
+    http
+      .expectOne('/ci/api/runners/r1/healthcheck')
+      .flush({ runId: 'run-99', requestId: null }, { status: 202, statusText: 'Accepted' });
+    await expect(queued).resolves.toEqual({ runId: 'run-99', requestId: null });
+  });
+
+  it('reads a runner’s node health report, checks and all', async () => {
+    const health = api.runnerHealth('r1');
+    const request = http.expectOne('/ci/api/runners/r1/health');
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      at: '2026-07-31T12:00:00Z',
+      ok: true,
+      detail: 'all checks passed',
+      requestId: 'req-1',
+      dataOmitted: false,
+      checks: [
+        { name: 'docker', ok: true, detail: 'reachable', data: { version: '24.0' } },
+        {
+          name: 'nodeInventory',
+          ok: true,
+          detail: '2 containers',
+          data: {
+            containers: [],
+            volumes: [],
+            runnerContainer: null,
+          },
+        },
+      ],
+    });
+    await expect(health).resolves.toMatchObject({
+      ok: true,
+      checks: [{ name: 'docker' }, { name: 'nodeInventory' }],
+    });
+  });
+
+  it('answers null for a 204 — the runner has never reported', async () => {
+    const health = api.runnerHealth('r1');
+    http
+      .expectOne('/ci/api/runners/r1/health')
+      .flush(null, { status: 204, statusText: 'No Content' });
+    await expect(health).resolves.toBeNull();
+  });
 });

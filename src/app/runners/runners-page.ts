@@ -12,10 +12,13 @@ import { RouterLink } from '@angular/router';
 import { QitsBadge, QitsButton, type QitsBadgeTone } from '@qits/ui-components';
 import { CiApi } from '../api/ci-api';
 import type {
+  CiNodeInventoryDto,
   CiRunnerCapabilities,
+  CiRunnerCheckReport,
   CiRunnerCreated,
   CiRunnerDto,
   CiRunnerHealthcheckDto,
+  CiRunnerHealthDto,
 } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
@@ -197,6 +200,87 @@ function healthcheckDisplay(healthcheck: CiRunnerHealthcheckDto): HealthcheckDis
     : { label: 'failed', tone: 'danger', at, runId, detail };
 }
 
+/** The name `nodeInventory`'s check carries — the one check this page renders specially, the same way qits-workspaces-frontend's runners page does. */
+const NODE_INVENTORY_CHECK = 'nodeInventory';
+
+/**
+ * How long this page keeps re-reading a runner's node report after an on-demand health check, and
+ * how often — bounded, because a runner that never reports back must not poll this page forever.
+ * Short enough that an operator who just clicked the button is still looking.
+ */
+const REPORT_POLL_TIMEOUT_MS = 30_000;
+const REPORT_POLL_INTERVAL_MS = 2_000;
+
+/** One check, drawn as a badge plus its detail sentence — the report's equivalent of {@link HealthcheckDisplay}. */
+interface CheckDisplay {
+  readonly name: string;
+  readonly label: string;
+  readonly tone: QitsBadgeTone;
+  readonly detail: string;
+}
+
+/** `check.ok` drawn `passed`/success or `failed`/danger — the same vocabulary {@link healthcheckDisplay} uses. */
+function checkDisplayOf(check: CiRunnerCheckReport): CheckDisplay {
+  return {
+    name: check.name,
+    label: check.ok ? 'passed' : 'failed',
+    tone: check.ok ? 'success' : 'danger',
+    detail: check.detail,
+  };
+}
+
+/** A flat `key: value` pair, for a check's `data` this page has no dedicated table for. */
+type CompactEntry = readonly [key: string, value: string];
+
+/** `data` read as compact entries — nested objects and arrays stringified rather than walked further. */
+function compactEntriesOf(data: Readonly<Record<string, unknown>> | null): readonly CompactEntry[] {
+  if (data === null) {
+    return [];
+  }
+  return Object.entries(data).map(([key, value]) => [
+    key,
+    typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value),
+  ]);
+}
+
+/**
+ * One check as the report's list draws it: the same name/ok/detail every check gets, plus either
+ * {@link NODE_INVENTORY_CHECK}'s own compact `entries` or nothing — its `data` gets the dedicated
+ * tables in {@link ReportDisplay.inventory} instead of a flat list nobody could read a container
+ * out of.
+ */
+interface ReportCheckDisplay {
+  readonly check: CheckDisplay;
+  readonly isNodeInventory: boolean;
+  readonly entries: readonly CompactEntry[];
+}
+
+/**
+ * The node report's content: every check in the order qits-ci sent them, plus `nodeInventory`'s
+ * `data` pulled out separately for the tables — mirroring how qits-workspaces-frontend's own report
+ * panel splits the same shape.
+ */
+interface ReportDisplay {
+  readonly checks: readonly ReportCheckDisplay[];
+  readonly inventory: CiNodeInventoryDto | null;
+}
+
+function reportDisplayOf(report: CiRunnerHealthDto): ReportDisplay {
+  let inventory: CiNodeInventoryDto | null = null;
+  const checks = report.checks.map((check) => {
+    const isNodeInventory = check.name === NODE_INVENTORY_CHECK;
+    if (isNodeInventory && typeof check.data === 'object' && check.data !== null) {
+      inventory = check.data as unknown as CiNodeInventoryDto;
+    }
+    return {
+      check: checkDisplayOf(check),
+      isNodeInventory,
+      entries: isNodeInventory ? [] : compactEntriesOf(check.data),
+    };
+  });
+  return { checks, inventory };
+}
+
 /** The one-time install-script panel: whose it is, and the script itself. */
 interface InstallPanel {
   readonly runnerName: string;
@@ -344,8 +428,19 @@ export class RunnersPage {
    */
   protected readonly healthchecking = signal<ReadonlyMap<string, string | null>>(new Map());
 
+  // --- the node health report, loaded lazily per row — qits-896 ---
+
+  /** One row's node report open at a time, keyed by runner id; `null` means none is. */
+  protected readonly reportOpen = signal<string | null>(null);
+
+  /** Per runner, the node report's own load — read lazily, the first time the panel opens. */
+  protected readonly reports = signal<ReadonlyMap<string, Loadable<CiRunnerHealthDto | null>>>(
+    new Map(),
+  );
+
   private pollHandle: ReturnType<typeof setInterval> | null = null;
   private inFlight = false;
+  private destroyed = false;
 
   constructor() {
     void this.load();
@@ -355,6 +450,7 @@ export class RunnersPage {
     inject(DestroyRef).onDestroy(() => {
       this.document.removeEventListener('visibilitychange', onVisibilityChange);
       this.stopPolling();
+      this.destroyed = true;
       if (this.copiedTimeout !== null) {
         clearTimeout(this.copiedTimeout);
       }
@@ -702,8 +798,13 @@ export class RunnersPage {
     this.healthcheckError.set('');
     this.healthchecking.update((map) => new Map(map).set(runner.id, runner.lastHealthcheck?.at ?? null));
     try {
-      await this.api.runRunnerHealthcheck(runner.id);
+      const queued = await this.api.runRunnerHealthcheck(runner.id);
       await this.load();
+      // Only worth refreshing a report this page has actually read before — a row nobody has
+      // opened yet will simply load fresh whenever it is, so there is nothing to poll for here.
+      if (this.reports().has(runner.id)) {
+        void this.pollReportAfterHealthcheck(runner, queued.requestId ?? null);
+      }
     } catch (error) {
       // A 409 means one is already queued or running for this runner — that fact, not a generic
       // failure, and the button re-enables since nothing new was queued by this click.
@@ -713,6 +814,82 @@ export class RunnersPage {
         next.delete(runner.id);
         return next;
       });
+    }
+  }
+
+  // --- the node health report: every check's own detail and data, loaded lazily per row ---
+
+  protected isReportOpen(runner: CiRunnerDto): boolean {
+    return this.reportOpen() === runner.id;
+  }
+
+  protected reportState(runner: CiRunnerDto): Loadable<CiRunnerHealthDto | null> {
+    return this.reports().get(runner.id) ?? LOADING;
+  }
+
+  /** `nodeInventory`'s containers/volumes/runner container, and every other check's `data` compactly. */
+  protected reportDisplay(report: CiRunnerHealthDto): ReportDisplay {
+    return reportDisplayOf(report);
+  }
+
+  /** Opens the panel and, the first time, loads it; closing never drops what was already read. */
+  protected async toggleReport(runner: CiRunnerDto): Promise<void> {
+    if (this.isReportOpen(runner)) {
+      this.reportOpen.set(null);
+      return;
+    }
+    this.reportOpen.set(runner.id);
+    await this.loadReport(runner);
+  }
+
+  protected async retryReport(runner: CiRunnerDto): Promise<void> {
+    await this.loadReport(runner, true);
+  }
+
+  private async loadReport(runner: CiRunnerDto, force = false): Promise<void> {
+    const state = this.reports().get(runner.id);
+    if (!force && state && (state.kind === 'ready' || state.kind === 'loading')) {
+      return;
+    }
+    this.reports.update((map) => new Map(map).set(runner.id, LOADING));
+    try {
+      const report = await this.api.runnerHealth(runner.id);
+      this.reports.update((map) => new Map(map).set(runner.id, ready(report)));
+    } catch (error) {
+      this.reports.update((map) => new Map(map).set(runner.id, failed(error)));
+    }
+  }
+
+  /**
+   * After an on-demand health check is queued, the report this page already holds is stale until
+   * the run that executes it lands — so this re-reads `GET …/health` every couple of seconds until
+   * either a newer `at` arrives or the fresh report's own `requestId` matches the one the POST
+   * answered, the same "wait for something fresher than what was seen at click time" shape
+   * {@link reconcileHealthchecking} already uses for the badge, just read from the report instead
+   * of the list. Bounded at {@link REPORT_POLL_TIMEOUT_MS}: a runner that never reports back must
+   * not poll this page forever, and a destroyed page must not poll at all.
+   */
+  private async pollReportAfterHealthcheck(
+    runner: CiRunnerDto,
+    requestId: string | null,
+  ): Promise<void> {
+    const seen = this.reports().get(runner.id);
+    const seenAt = seen?.kind === 'ready' ? (seen.value?.at ?? null) : null;
+    const deadline = Date.now() + REPORT_POLL_TIMEOUT_MS;
+    while (!this.destroyed && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, REPORT_POLL_INTERVAL_MS));
+      if (this.destroyed) {
+        return;
+      }
+      await this.loadReport(runner, true);
+      const state = this.reports().get(runner.id);
+      if (state?.kind === 'ready' && state.value) {
+        const landed =
+          (requestId !== null && state.value.requestId === requestId) || state.value.at !== seenAt;
+        if (landed) {
+          return;
+        }
+      }
     }
   }
 }

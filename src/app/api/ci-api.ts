@@ -10,10 +10,12 @@ import type {
   CiRunDto,
   CiRunnerCreated,
   CiRunnerDto,
+  CiRunnerHealthDto,
   CiRunnersResponse,
   CiRunsResponse,
   CreateRunnerRequest,
   PatchRunnerRequest,
+  RunnerHealthcheckResponse,
 } from './dto';
 
 /**
@@ -233,26 +235,38 @@ export class CiApi {
 
   /**
    * Queue a health check on demand, rather than waiting for the hourly cadence a quarantined
-   * runner already gets. Answers the queued run's id; a check already queued or running for this
-   * runner answers 409, whose message the caller renders rather than a generic failure.
+   * runner already gets. Answers the queued run's id and — qits-896 — the `requestId` the full
+   * node report will carry once it lands, `null` when the runner is not connected to be asked over.
+   * A check already queued or running for this runner answers 409, whose message the caller renders
+   * rather than a generic failure.
    */
-  async runRunnerHealthcheck(id: string): Promise<string> {
-    const response = await firstValueFrom(
+  runRunnerHealthcheck(id: string): Promise<RunnerHealthcheckResponse> {
+    return firstValueFrom(
       this.http.post<RunnerHealthcheckResponse>(
         `${this.base}/ci/api/runners/${encodeURIComponent(id)}/healthcheck`,
         null,
       ),
     );
-    return response.runId;
+  }
+
+  /**
+   * The runner's node health report — qits-896 — every check qits-ci last ran against it, with
+   * each check's own structured data (`nodeInventory`'s containers, volumes and runner container).
+   *
+   * `null` is a bare 204: the runner has never reported, so there is nothing to show. Read the same
+   * way {@link greenlightRunner} already does — Angular's `HttpClient` parses an empty body as
+   * `null` for a JSON response, so no branching on status is needed here.
+   */
+  runnerHealth(id: string): Promise<CiRunnerHealthDto | null> {
+    return firstValueFrom(
+      this.http.get<CiRunnerHealthDto | null>(
+        `${this.base}/ci/api/runners/${encodeURIComponent(id)}/health`,
+      ),
+    );
   }
 }
 
 /** What a retry answers: the id of the run it queued. */
 interface RetryRunResponse {
-  readonly runId: string;
-}
-
-/** What an on-demand health check answers: the id of the run it queued. */
-interface RunnerHealthcheckResponse {
   readonly runId: string;
 }
