@@ -24,7 +24,8 @@ its own host (`ci.<env>.<domain>/`) through Quinoa. Two screens, no forms, and t
   A `CANCELLED` run says so in words beside its badge: qits-ci publishes **no** build event for a
   stopped run, so nothing downstream is gated on it and no release is held by it. "The run is red"
   and "somebody stopped the run" lead to opposite next actions, which is why the badge alone is not
-  enough. A run that gates a release request shows its `releaseRequestId`, and a re-run links back
+  enough. A run that gates a release request shows its logical id (`releaseRequestQualifiedId`, such as
+  `qits-ci-service-rr-7`), or its `releaseRequestId` when qits-ci has none, and a re-run links back
   to the run it re-fires.
 
 A run still in flight also carries the **shape it is expected to take**: qits-ci answers a p95 of

@@ -904,6 +904,26 @@ describe('RunPage', () => {
     expect(phrase()).toContain('phase two · publishing the release');
   });
 
+  /** qits-1158: a person reads the logical id; the UUID stays on hand as the title. */
+  it('names the release request by its logical id when qits-ci has one', async () => {
+    await open();
+    expectRun().flush(
+      run({
+        releaseRequestId: '9f2c1a7e-4b31-4c8e-9a11-6d0f5c2e8b44',
+        releaseRequestQualifiedId: 'qits-ci-service-rr-7',
+      }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(phrase()).toContain('Release requestqits-ci-service-rr-7');
+    expect(text()).not.toContain('9f2c1a7e-4b31-4c8e-9a11-6d0f5c2e8b44');
+    const code = Array.from(page().querySelectorAll('.facts code')).find(
+      (element) => element.textContent?.trim() === 'qits-ci-service-rr-7',
+    );
+    expect(code?.getAttribute('title')).toBe('9f2c1a7e-4b31-4c8e-9a11-6d0f5c2e8b44');
+  });
+
   /** A qits-ci too old to answer the field renders exactly as it did before the field existed. */
   it('says nothing about a phase a run does not carry', async () => {
     await open();

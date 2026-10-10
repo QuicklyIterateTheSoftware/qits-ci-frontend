@@ -205,6 +205,11 @@ export interface CiRunDto {
    */
   readonly releaseRequestId: string | null;
   /**
+   * The same request's logical id, `<repository>-rr-<n>` (qits-1158): what a person reads. Null when
+   * the run's triggering event predates it, and absent from an older qits-ci; show the UUID then.
+   */
+  readonly releaseRequestQualifiedId?: string | null;
+  /**
    * The run this one was fired to re-do, null on everything a trigger produced.
    *
    * Present means "somebody asked this question again". Its `triggerEventId` is then a synthetic
