@@ -1,0 +1,534 @@
+{
+  "consumer": {
+    "name": "qits-ci-frontend"
+  },
+  "interactions": [
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-edge-service",
+            "operationId": "getMainNavigation"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "show-main-navigation",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "show-main-navigation: getMainNavigation",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a published navigation",
+          "params": {
+            "host": "projects.qits.example.com"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/main-navigation"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "applications": {
+              "qits-events": {
+                "apiDocs": "/events/q/swagger-ui",
+                "origin": "https://events.qits.example.com"
+              },
+              "qits-githost": {
+                "apiDocs": "/githost/q/swagger-ui",
+                "origin": "https://githost.qits.example.com"
+              },
+              "qits-idp": {
+                "apiDocs": "/idp/q/swagger-ui",
+                "origin": "https://idp.qits.example.com"
+              },
+              "qits-landing": {
+                "origin": "https://qits.example.com"
+              },
+              "qits-maintenance": {
+                "apiDocs": "/maintenance/q/swagger-ui",
+                "origin": "https://maintenance.qits.example.com"
+              },
+              "qits-projects": {
+                "apiDocs": "/projects/q/swagger-ui",
+                "origin": "https://projects.qits.example.com"
+              },
+              "qits-workspaces": {
+                "apiDocs": "/workspaces/q/swagger-ui",
+                "origin": "https://workspaces.qits.example.com"
+              }
+            },
+            "origin": "https://qits.example.com",
+            "projectOrigin": "https://qits.example.com",
+            "slots": {
+              "apps.details": [],
+              "cli.details": [],
+              "daemons.details": [],
+              "frontends.details": [],
+              "images.details": [],
+              "libs.details": [],
+              "platform": [
+                {
+                  "app": "qits-githost",
+                  "host": "githost",
+                  "label": "Git",
+                  "origin": "https://githost.qits.example.com",
+                  "path": "/githost",
+                  "position": 1,
+                  "subpath": null
+                },
+                {
+                  "app": "qits-githost",
+                  "host": "githost",
+                  "label": "Git",
+                  "origin": "https://githost.qits.example.com",
+                  "path": "/githost",
+                  "position": 1,
+                  "subpath": null
+                },
+                {
+                  "app": "qits-githost",
+                  "host": "githost",
+                  "label": "Git",
+                  "origin": "https://githost.qits.example.com",
+                  "path": "/githost",
+                  "position": 1,
+                  "subpath": null
+                },
+                {
+                  "app": "qits-githost",
+                  "host": "githost",
+                  "label": "Git",
+                  "origin": "https://githost.qits.example.com",
+                  "path": "/githost",
+                  "position": 1,
+                  "subpath": null
+                }
+              ],
+              "project.detail": [
+                {
+                  "app": "qits-workspaces",
+                  "host": "workspaces",
+                  "label": "Workspaces",
+                  "origin": "https://workspaces.qits.example.com",
+                  "path": "/workspaces",
+                  "position": 1,
+                  "subpath": null
+                }
+              ],
+              "services.details": [],
+              "system": [
+                {
+                  "app": "qits-projects",
+                  "host": "projects",
+                  "label": "Overview",
+                  "origin": "https://projects.qits.example.com",
+                  "path": "/projects",
+                  "position": 1,
+                  "subpath": null
+                }
+              ]
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.applications['qits-events'].apiDocs": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-events'].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-githost'].apiDocs": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-githost'].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-idp'].apiDocs": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-idp'].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-landing'].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-maintenance'].apiDocs": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-maintenance'].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-projects'].apiDocs": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-projects'].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-workspaces'].apiDocs": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.applications['qits-workspaces'].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.projectOrigin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.platform": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 4,
+                  "min": 4
+                }
+              ]
+            },
+            "$.slots.platform[*].app": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.platform[*].host": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.platform[*].label": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.platform[*].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.platform[*].path": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                },
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.platform[*].position": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                },
+                {
+                  "match": "number"
+                },
+                {
+                  "match": "number"
+                },
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$.slots.system": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 1,
+                  "min": 1
+                }
+              ]
+            },
+            "$.slots.system[*].app": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.system[*].host": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.system[*].label": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.system[*].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.system[*].path": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots.system[*].position": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$.slots['project.detail']": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 1,
+                  "min": 1
+                }
+              ]
+            },
+            "$.slots['project.detail'][*].app": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots['project.detail'][*].host": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots['project.detail'][*].label": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots['project.detail'][*].origin": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots['project.detail'][*].path": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.slots['project.detail'][*].position": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "17.1.4"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "qits-edge-service"
+  }
+}

@@ -1,0 +1,556 @@
+{
+  "consumer": {
+    "name": "qits-ci-frontend"
+  },
+  "interactions": [
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-githost-service",
+            "operationId": "getRepositoryFile"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "preview-failure-source",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "preview-failure-source: getRepositoryFile",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a repository missing the requested commit",
+          "params": {
+            "path": ".config/qits/release.yml",
+            "projectId": "00000000-0000-4000-8000-000000000001",
+            "repoName": "contract-service",
+            "repositoryId": "00000000-0000-4000-8000-000000000002",
+            "sha": "0000000000000000000000000000000000000001"
+          }
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/githost/api/repositories/${repositoryId}/file",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/githost/api/repositories/00000000-0000-4000-8000-000000000002/file",
+        "query": {
+          "path": [
+            ".config/qits/release.yml"
+          ],
+          "rev": [
+            "0000000000000000000000000000000000000001"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "error": "no-such-rev"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.error": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-githost-service",
+            "operationId": "getRepositoryFile"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "preview-failure-source",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "preview-failure-source: getRepositoryFile",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a repository missing the requested path",
+          "params": {
+            "directory": ".config/absent",
+            "path": ".config/qits/absent.yml",
+            "projectId": "00000000-0000-4000-8000-000000000001",
+            "repoName": "contract-service",
+            "repositoryId": "00000000-0000-4000-8000-000000000002",
+            "rev": "main"
+          }
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/githost/api/repositories/${repositoryId}/file",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/githost/api/repositories/00000000-0000-4000-8000-000000000002/file",
+        "query": {
+          "path": [
+            ".config/qits/absent.yml"
+          ],
+          "rev": [
+            "main"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "error": "no-such-path"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.error": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-githost-service",
+            "operationId": "getRepositoryFile"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "preview-failure-source",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "preview-failure-source: getRepositoryFile",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a repository with files on main",
+          "params": {
+            "directory": ".config/qits",
+            "path": ".config/qits/release.yml",
+            "projectId": "00000000-0000-4000-8000-000000000001",
+            "repoName": "contract-service",
+            "repositoryId": "00000000-0000-4000-8000-000000000002",
+            "rev": "main",
+            "sha": "0000000000000000000000000000000000000001"
+          }
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/githost/api/repositories/${repositoryId}/file",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/githost/api/repositories/00000000-0000-4000-8000-000000000002/file",
+        "query": {
+          "path": [
+            ".config/qits/release.yml"
+          ],
+          "rev": [
+            "main"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "binary": false,
+            "content": "archetype: java-service\n",
+            "path": ".config/qits/release.yml",
+            "size": 24
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.binary": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.content": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.path": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-githost-service",
+            "operationId": "getRepositoryFile"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "preview-failure-source",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "preview-failure-source: getRepositoryFile",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "no repository with the given id",
+          "params": {
+            "path": ".config/qits/release.yml",
+            "repositoryId": "00000000-0000-4000-8000-000000000001",
+            "rev": "main"
+          }
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/githost/api/repositories/${repositoryId}/file",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/githost/api/repositories/00000000-0000-4000-8000-000000000001/file",
+        "query": {
+          "path": [
+            ".config/qits/release.yml"
+          ],
+          "rev": [
+            "main"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "error": "no-such-repository"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.error": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-githost-service",
+            "operationId": "getRaw"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "show-screenshot",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "show-screenshot: getRaw",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a repository with an image on main",
+          "params": {
+            "body": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mPQqr8CAAJUAX5kvxnrAAAAAElFTkSuQmCC",
+            "path": "docs/screenshot.png",
+            "projectId": "00000000-0000-4000-8000-000000000001",
+            "repoName": "contract-service",
+            "repositoryId": "00000000-0000-4000-8000-000000000002",
+            "rev": "main",
+            "sha": "0000000000000000000000000000000000000001"
+          }
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/githost/api/repositories/${repositoryId}/raw",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/githost/api/repositories/00000000-0000-4000-8000-000000000002/raw",
+        "query": {
+          "path": [
+            "docs/screenshot.png"
+          ],
+          "rev": [
+            "main"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mPQqr8CAAJUAX5kvxnrAAAAAElFTkSuQmCC",
+          "contentType": "*/*",
+          "encoded": "base64"
+        },
+        "headers": {
+          "Content-Type": [
+            "image/png"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "contentType",
+                  "value": "image/png"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "image/png.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "17.1.4"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "qits-githost-service"
+  }
+}

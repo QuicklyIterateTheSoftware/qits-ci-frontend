@@ -1,0 +1,1170 @@
+{
+  "consumer": {
+    "name": "qits-ci-frontend"
+  },
+  "interactions": [
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-ci-service",
+            "operationId": "getRunReport"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "open-run-report",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "open-run-report: getRunReport",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a run with reports: failing tests and coverage",
+          "params": {
+            "baselineRequestId": "00000000-0000-4000-8000-000000000001",
+            "baselineRunId": "00000000-0000-4000-8000-000000000002",
+            "coverageReportId": "00000000-0000-4000-8000-000000000003",
+            "entityChangesReportId": "00000000-0000-4000-8000-000000000004",
+            "releaseRequestId": "00000000-0000-4000-8000-000000000005",
+            "reportId": "00000000-0000-4000-8000-000000000006",
+            "repositoryId": "00000000-0000-4000-8000-000000000007",
+            "runId": "00000000-0000-4000-8000-000000000008"
+          }
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/ci/api/runs/${runId}/reports/${reportId}",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/ci/api/runs/00000000-0000-4000-8000-000000000008/reports/00000000-0000-4000-8000-000000000006"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "baselineRunId": "00000000-0000-4000-8000-000000000002",
+            "baselineVersion": "2026.101.120000",
+            "highlights": [
+              {
+                "delta": null,
+                "metric": "tests.failed",
+                "severity": "bad",
+                "text": "1 test failed",
+                "value": 1
+              },
+              {
+                "delta": 3,
+                "metric": "tests.total",
+                "severity": "info",
+                "text": "+3 tests vs 2026.101.120000",
+                "value": 128
+              }
+            ],
+            "id": "00000000-0000-4000-8000-000000000006",
+            "kind": "test-results",
+            "kindVersion": 1,
+            "payload": {},
+            "payloadBytes": 960,
+            "stepIndex": 1,
+            "submittedAt": "2026-01-01T00:00:00Z"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.baselineRunId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                }
+              ]
+            },
+            "$.baselineVersion": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.highlights": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "arrayContains",
+                  "variants": [
+                    {
+                      "index": 0,
+                      "rules": {
+                        "$.metric": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.severity": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.text": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.value": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "index": 1,
+                      "rules": {
+                        "$.delta": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        },
+                        "$.metric": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.severity": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.text": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.value": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                }
+              ]
+            },
+            "$.kind": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.kindVersion": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$.payloadBytes": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$.stepIndex": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$.submittedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:?\\d{2})$"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-ci-service",
+            "operationId": "listRunBaselineReports"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "open-run-report",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "open-run-report: listRunBaselineReports",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a run with reports: failing tests and coverage",
+          "params": {
+            "baselineRequestId": "00000000-0000-4000-8000-000000000001",
+            "baselineRunId": "00000000-0000-4000-8000-000000000002",
+            "coverageReportId": "00000000-0000-4000-8000-000000000003",
+            "entityChangesReportId": "00000000-0000-4000-8000-000000000004",
+            "releaseRequestId": "00000000-0000-4000-8000-000000000005",
+            "reportId": "00000000-0000-4000-8000-000000000006",
+            "repositoryId": "00000000-0000-4000-8000-000000000007",
+            "runId": "00000000-0000-4000-8000-000000000008"
+          }
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/ci/api/runs/${runId}/baseline/reports/test-results",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/ci/api/runs/00000000-0000-4000-8000-000000000008/baseline/reports/test-results"
+      },
+      "response": {
+        "body": {
+          "content": [
+            {
+              "highlights": [
+                {
+                  "delta": null,
+                  "metric": "tests.total",
+                  "severity": "info",
+                  "text": "128 tests",
+                  "value": 128
+                }
+              ],
+              "id": "00000000-0000-4000-8000-000000000009",
+              "kind": "test-results",
+              "kindVersion": 1,
+              "payload": {},
+              "payloadBytes": 960,
+              "stepIndex": 1,
+              "submittedAt": "2026-01-01T00:00:00Z"
+            }
+          ],
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 1,
+                  "min": 1
+                }
+              ]
+            },
+            "$[*].highlights": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "max": 1,
+                  "min": 1
+                }
+              ]
+            },
+            "$[*].highlights[*].metric": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].highlights[*].severity": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].highlights[*].text": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].highlights[*].value": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                }
+              ]
+            },
+            "$[*].kind": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].kindVersion": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$[*].payloadBytes": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$[*].stepIndex": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            },
+            "$[*].submittedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:?\\d{2})$"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-ci-service",
+            "operationId": "listActiveRuns"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "show-active-builds",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "show-active-builds: listActiveRuns",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a commit with a run in flight",
+          "params": {
+            "commitSha": "0000000000000000000000000000000000000005",
+            "repositoryId": "00000000-0000-4000-8000-000000000001",
+            "runId": "00000000-0000-4000-8000-000000000002"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/ci/api/runs/active"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "runs": [
+              {
+                "branch": "main",
+                "commitSha": "0000000000000000000000000000000000000005",
+                "configPath": ".config/qits/ci-event-build.yml",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "id": "00000000-0000-4000-8000-000000000002",
+                "repoName": "contract-service",
+                "startedAt": "2026-01-01T00:00:00Z",
+                "status": "RUNNING"
+              }
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.runs": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "arrayContains",
+                  "variants": [
+                    {
+                      "index": 0,
+                      "rules": {
+                        "$.branch": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.commitSha": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.configPath": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.createdAt": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:?\\d{2})$"
+                            }
+                          ]
+                        },
+                        "$.id": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                            }
+                          ]
+                        },
+                        "$.repoName": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.startedAt": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:?\\d{2})$"
+                            }
+                          ]
+                        },
+                        "$.status": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "comments": {
+        "references": {
+          "qits-call": {
+            "app": "qits-ci-service",
+            "operationId": "listRunReports"
+          },
+          "qits-trigger": {
+            "app": "qits-ci-frontend",
+            "interaction": "show-run-reports",
+            "kind": "ui"
+          },
+          "qits-via": {
+            "artifact": "@qits/ui-components",
+            "repository": "qits-ui-components-jslib",
+            "version": "2026.1021.185351"
+          }
+        }
+      },
+      "description": "show-run-reports: listRunReports",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a run with reports: failing tests and coverage",
+          "params": {
+            "baselineRequestId": "00000000-0000-4000-8000-000000000001",
+            "baselineRunId": "00000000-0000-4000-8000-000000000002",
+            "coverageReportId": "00000000-0000-4000-8000-000000000003",
+            "entityChangesReportId": "00000000-0000-4000-8000-000000000004",
+            "releaseRequestId": "00000000-0000-4000-8000-000000000005",
+            "reportId": "00000000-0000-4000-8000-000000000006",
+            "repositoryId": "00000000-0000-4000-8000-000000000007",
+            "runId": "00000000-0000-4000-8000-000000000008"
+          }
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/ci/api/runs/${runId}/reports",
+            "type": "ProviderState"
+          }
+        },
+        "matchingRules": {
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/ci/api/runs/00000000-0000-4000-8000-000000000008/reports"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "baseline": {
+              "releaseRequestId": "00000000-0000-4000-8000-000000000001",
+              "runId": "00000000-0000-4000-8000-000000000002",
+              "tagSha": "0000000000000000000000000000000000000002",
+              "version": "2026.101.120000"
+            },
+            "commitSha": "0000000000000000000000000000000000000003",
+            "releaseRequestId": "00000000-0000-4000-8000-000000000005",
+            "reports": [
+              {
+                "baselineRunId": "00000000-0000-4000-8000-000000000002",
+                "baselineVersion": "2026.101.120000",
+                "highlights": [
+                  {
+                    "delta": null,
+                    "metric": "coverage.diff",
+                    "severity": "warn",
+                    "text": "diff coverage 60.0% (6/10 changed lines)",
+                    "value": 60
+                  },
+                  {
+                    "delta": -1.2,
+                    "metric": "coverage.total",
+                    "severity": "info",
+                    "text": "coverage 81.3% (-1.2)",
+                    "value": 81.3
+                  }
+                ],
+                "id": "00000000-0000-4000-8000-000000000003",
+                "kind": "coverage",
+                "kindVersion": 1,
+                "payloadBytes": 508,
+                "stepIndex": 1,
+                "submittedAt": "2026-01-01T00:00:00Z"
+              },
+              {
+                "baselineRunId": "00000000-0000-4000-8000-000000000002",
+                "baselineVersion": "2026.101.120000",
+                "highlights": [
+                  {
+                    "delta": null,
+                    "metric": "entities.tables.changed",
+                    "severity": "warn",
+                    "text": "Entities changed since 2026.101.120000: +0 ~1 −0 tables",
+                    "value": 1
+                  },
+                  {
+                    "delta": null,
+                    "metric": "entities.tables.changed",
+                    "severity": "warn",
+                    "text": "Entities changed since 2026.101.120000: +0 ~1 −0 tables",
+                    "value": 1
+                  }
+                ],
+                "id": "00000000-0000-4000-8000-000000000004",
+                "kind": "entity-changes",
+                "kindVersion": 1,
+                "payloadBytes": 497,
+                "stepIndex": 1,
+                "submittedAt": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "runId": "00000000-0000-4000-8000-000000000008"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.baseline.releaseRequestId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                }
+              ]
+            },
+            "$.baseline.runId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                }
+              ]
+            },
+            "$.baseline.tagSha": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.baseline.version": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.commitSha": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.releaseRequestId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                }
+              ]
+            },
+            "$.reports": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "arrayContains",
+                  "variants": [
+                    {
+                      "index": 0,
+                      "rules": {
+                        "$.baselineRunId": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                            }
+                          ]
+                        },
+                        "$.baselineVersion": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.highlights": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "arrayContains",
+                              "variants": [
+                                {
+                                  "index": 0,
+                                  "rules": {
+                                    "$.metric": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "type"
+                                        }
+                                      ]
+                                    },
+                                    "$.severity": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "type"
+                                        }
+                                      ]
+                                    },
+                                    "$.text": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "type"
+                                        }
+                                      ]
+                                    },
+                                    "$.value": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "number"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                {
+                                  "index": 1,
+                                  "rules": {
+                                    "$.delta": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "number"
+                                        }
+                                      ]
+                                    },
+                                    "$.metric": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "type"
+                                        }
+                                      ]
+                                    },
+                                    "$.severity": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "type"
+                                        }
+                                      ]
+                                    },
+                                    "$.text": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "type"
+                                        }
+                                      ]
+                                    },
+                                    "$.value": {
+                                      "combine": "AND",
+                                      "matchers": [
+                                        {
+                                          "match": "number"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        "$.id": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                            }
+                          ]
+                        },
+                        "$.kind": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.kindVersion": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        },
+                        "$.payloadBytes": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        },
+                        "$.stepIndex": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        },
+                        "$.submittedAt": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:?\\d{2})$"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "index": 1,
+                      "rules": {
+                        "$.baselineRunId": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                            }
+                          ]
+                        },
+                        "$.baselineVersion": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.highlights": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type",
+                              "max": 2,
+                              "min": 2
+                            }
+                          ]
+                        },
+                        "$.highlights[*].metric": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            },
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.highlights[*].severity": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            },
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.highlights[*].text": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            },
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.highlights[*].value": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            },
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        },
+                        "$.id": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                            }
+                          ]
+                        },
+                        "$.kind": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "type"
+                            }
+                          ]
+                        },
+                        "$.kindVersion": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        },
+                        "$.payloadBytes": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        },
+                        "$.stepIndex": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "number"
+                            }
+                          ]
+                        },
+                        "$.submittedAt": {
+                          "combine": "AND",
+                          "matchers": [
+                            {
+                              "match": "regex",
+                              "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}:?\\d{2})$"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "$.runId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json.*"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "17.1.4"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "qits-ci-service"
+  }
+}
