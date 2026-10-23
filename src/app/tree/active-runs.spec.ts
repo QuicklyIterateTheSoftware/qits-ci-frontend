@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { provideQitsNavigationTree } from '@qits/ui-components';
 import type { CiRunDto } from '../api/dto';
 import { ACTIVE_POLL_INTERVAL_MS, ActiveRuns, FINISHED_SEED_COUNT } from './active-runs';
 
@@ -122,30 +123,17 @@ describe('ActiveRuns', () => {
   }
 
   /**
-   * One tick's worth of answers. All three reads are asked on every tick, so a spec that answered
-   * fewer would leave the rest outstanding and `http.verify()` would say so.
+   * One tick's worth of answers. Both reads are asked on every tick, so a spec that answered fewer
+   * would leave the rest outstanding and `http.verify()` would say so.
    */
   function flushActive(active: readonly CiRunDto[], finished: readonly CiRunDto[] = []): void {
     http.expectOne('/ci/api/runs/active').flush({ runs: active });
     flushFinished(finished);
-    flushQueue();
   }
 
   /** The finished listing answers newest-first, exactly as the server does. */
   function flushFinished(runs: readonly CiRunDto[]): void {
     http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs });
-  }
-
-  /**
-   * The queue read most of this suite does not care about — it answers the bare minimum so the
-   * capacity line and the runner column are simply not drawn, which is what every one of these specs
-   * was written against before either field existed. `queue-capacity.spec.ts`-equivalent coverage of
-   * the line itself lives in the dedicated block near the end of this file.
-   */
-  function flushQueue(): void {
-    http
-      .expectOne((request) => request.url === '/ci/api/runs/queue')
-      .flush({ generatedAt: new Date().toISOString(), running: [], queued: [] });
   }
 
   function text(): string {
@@ -154,8 +142,8 @@ describe('ActiveRuns', () => {
 
   /**
    * Every run link in document order — the stack sits above the active list, so order is content.
-   * Scoped to `.entry`, the run rows' own class: the heading also carries a link to the runners
-   * page, and it is not a run.
+   * Scoped to `.entry`, the run rows' own class: the heading also carries a link to qits-system's
+   * Targets page, and it is not a run.
    */
   function links(): readonly string[] {
     return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.entry')).map(
@@ -505,7 +493,6 @@ describe('ActiveRuns', () => {
     await tick(ACTIVE_POLL_INTERVAL_MS);
     http.expectOne('/ci/api/runs/active').flush(null, { status: 503, statusText: 'Down' });
     flushFinished([]);
-    flushQueue();
     await settle();
 
     expect(text()).toContain('last read failed');
@@ -521,7 +508,6 @@ describe('ActiveRuns', () => {
     mount();
     http.expectOne('/ci/api/runs/active').flush(null, { status: 503, statusText: 'Down' });
     flushFinished([]);
-    flushQueue();
     await settle();
 
     expect(text()).toContain('Could not load the runs in flight — 503');
@@ -567,7 +553,6 @@ describe('ActiveRuns', () => {
     expect(request.request.params.get('limit')).toBe(String(FINISHED_SEED_COUNT));
     request.flush({ runs: [] });
     http.expectOne('/ci/api/runs/active').flush({ runs: [] });
-    flushQueue();
     await settle();
 
     // An empty heading over nothing is noise; the active section already says the platform is idle.
@@ -684,7 +669,6 @@ describe('ActiveRuns', () => {
     http
       .expectOne((call) => call.url === '/ci/api/runs/finished')
       .flush(null, { status: 503, statusText: 'Down' });
-    flushQueue();
     await settle();
 
     // History that did not refresh is not a failure worth a banner: the active list is this
@@ -693,89 +677,58 @@ describe('ActiveRuns', () => {
     expect(text()).not.toContain('last read failed');
   });
 
-  // --- runners: the column on a running row, the heading link, and the capacity line ---
+  // --- the heading's link to qits-system's Targets page, where the runners link used to be ---
 
-  it('links to the runners page beside the heading', async () => {
+  /** No navigation provided at all — the default in `beforeEach` — so there is nowhere to link to. */
+  it('draws no Targets link when the platform names no address for qits-system', async () => {
     mount();
     flushActive([]);
     await settle();
 
     const link = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('a'),
-    ).find((anchor) => (anchor.textContent ?? '').trim() === 'Runners');
-    expect(link?.getAttribute('href')).toBe('/runners');
+    ).find((anchor) => (anchor.textContent ?? '').trim() === 'Targets');
+    expect(link).toBeUndefined();
   });
 
-  it('says which runner is executing a RUNNING row, and says unassigned for a pre-runner run', async () => {
-    mount();
-    flushActive([
-      run('r1', { status: 'RUNNING', runnerId: 'run-1', runnerName: 'build-box-1' }),
-      run('r2', { status: 'RUNNING', runnerId: null, runnerName: null }),
-    ]);
-    await settle();
-
-    expect(text()).toContain('on build-box-1');
-    expect(text()).toContain('on unassigned');
-  });
-
-  /** A queued run has not been claimed by anything yet, so there is no runner to say. */
-  it('draws no runner column on a queued row', async () => {
-    mount();
-    flushActive([run('r1', { status: 'QUEUED' })]);
-    await settle();
-
-    expect(text()).not.toContain(' on unassigned');
-  });
-
-  it('draws the capacity line from the connected runners alone', async () => {
-    mount();
-    http.expectOne('/ci/api/runs/active').flush({ runs: [] });
-    http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
-    http.expectOne((request) => request.url === '/ci/api/runs/queue').flush({
-      generatedAt: new Date().toISOString(),
-      running: [],
-      queued: [],
-      runners: [
-        { id: 'a', name: 'runner-a', slots: 2, held: 1, connected: true },
-        { id: 'b', name: 'runner-b', slots: 3, held: 0, connected: false },
+  /**
+   * qits-system is another application on another host, so this is an href and not a router
+   * link, at the address the platform states — qits-ci no longer has a runners page of its own
+   * to link to (epic qits-1481).
+   */
+  it('links to qits-system’s Targets page beside the heading, at the address the platform states', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideLocationMocks(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideQitsNavigationTree({
+          environment: 'dev',
+          origin: 'https://dev.example.test',
+          slots: {
+            'services.details': [
+              {
+                app: 'qits-system',
+                label: 'System',
+                host: 'system.dev.example.test',
+                origin: 'https://system.dev.example.test',
+              },
+            ],
+          },
+          applications: {},
+        }),
       ],
     });
-    await settle();
-
-    expect(text()).toContain('2 slots across 1 connected runner');
-  });
-
-  /** No connected runners at all — including a qits-ci too old to answer `runners` — is said plainly. */
-  it('says there are no connected runners when the service answers no runners field', async () => {
+    http = TestBed.inject(HttpTestingController);
     mount();
     flushActive([]);
     await settle();
 
-    expect(text()).toContain('no connected runners');
-  });
-
-  it('keeps the last capacity line on screen when a poll’s queue read fails', async () => {
-    useIntervalFakes();
-    mount();
-    http.expectOne('/ci/api/runs/active').flush({ runs: [] });
-    http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
-    http.expectOne((request) => request.url === '/ci/api/runs/queue').flush({
-      generatedAt: new Date().toISOString(),
-      running: [],
-      queued: [],
-      runners: [{ id: 'a', name: 'runner-a', slots: 4, held: 0, connected: true }],
-    });
-    await settle();
-    expect(text()).toContain('4 slots across 1 connected runner');
-
-    await tick(ACTIVE_POLL_INTERVAL_MS);
-    http.expectOne('/ci/api/runs/active').flush({ runs: [] });
-    http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
-    http
-      .expectOne((request) => request.url === '/ci/api/runs/queue')
-      .flush(null, { status: 503, statusText: 'Down' });
-    await settle();
-
-    expect(text()).toContain('4 slots across 1 connected runner');
+    const link = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('a'),
+    ).find((anchor) => (anchor.textContent ?? '').trim() === 'Targets');
+    expect(link?.getAttribute('href')).toBe('https://system.dev.example.test/targets');
   });
 });

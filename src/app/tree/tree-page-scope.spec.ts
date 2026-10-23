@@ -81,7 +81,7 @@ describe('TreePage in scope', () => {
   }
 
   /**
-   * Mount at a URL and answer everything the page asks for on load: the five flat reads, then one
+   * Mount at a URL and answer everything the page asks for on load: the four flat reads, then one
    * repository list per project for the attribution index.
    */
   async function open(url: string): Promise<void> {
@@ -95,11 +95,6 @@ describe('TreePage in scope', () => {
     http.expectOne('/ci/api/repositories/summary').flush({ repositories: [] });
     http.expectOne('/ci/api/runs/active').flush({ runs: [] });
     http.expectOne((request) => request.url === '/ci/api/runs/finished').flush({ runs: [] });
-    http.expectOne((request) => request.url === '/ci/api/runs/queue').flush({
-      generatedAt: new Date().toISOString(),
-      running: [],
-      queued: [],
-    });
     await settle();
     http
       .expectOne(`${PROJECTS_ORIGIN}/projects/api/projects/p1/repositories`)

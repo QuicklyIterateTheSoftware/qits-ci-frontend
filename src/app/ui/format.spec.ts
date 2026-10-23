@@ -1,13 +1,11 @@
 import {
   NONE,
-  formatAgo,
   formatClock,
   formatDayTime,
   formatDuration,
   formatElapsed,
   formatEta,
   formatInstant,
-  formatQueueCapacity,
   repositoryLabel,
   runRepositoryLabel,
   shortId,
@@ -139,42 +137,5 @@ describe('format', () => {
   it('keeps the truncation marker verbatim — the head is gone and cannot be fetched', () => {
     const output = '[... output truncated ...]\nadded 812 packages in 41s\n';
     expect(stripAnsi(output)).toContain('[... output truncated ...]');
-  });
-
-  it('reads a runner’s last-seen instant as an elapsed span against now', () => {
-    const now = Date.parse('2026-07-31T15:22:07Z');
-    expect(formatAgo('2026-07-31T15:20:00Z', now)).toBe('2m 07s ago');
-  });
-
-  /** A runner that registered but never connected has genuinely never been seen — not unknown. */
-  it('says never rather than an em dash for a runner that has not connected yet', () => {
-    expect(formatAgo(null, Date.now())).toBe('never');
-  });
-
-  describe('formatQueueCapacity', () => {
-    it('says there are no connected runners when the service answers no runners at all', () => {
-      expect(formatQueueCapacity(undefined)).toBe('no connected runners');
-      expect(formatQueueCapacity(null)).toBe('no connected runners');
-    });
-
-    it('sums slots, counting only connected runners’', () => {
-      const runners = [
-        { slots: 2, connected: true },
-        { slots: 3, connected: true },
-        { slots: 8, connected: false },
-      ];
-      expect(formatQueueCapacity(runners)).toBe('5 slots across 2 connected runners');
-    });
-
-    /** A deployment with runners but none connected still says so plainly, not as a gap. */
-    it('says there are no connected runners when runners exist but none are connected', () => {
-      expect(formatQueueCapacity([{ slots: 4, connected: false }])).toBe('no connected runners');
-    });
-
-    it('singularises one slot and one runner', () => {
-      expect(formatQueueCapacity([{ slots: 1, connected: true }])).toBe(
-        '1 slot across 1 connected runner',
-      );
-    });
   });
 });

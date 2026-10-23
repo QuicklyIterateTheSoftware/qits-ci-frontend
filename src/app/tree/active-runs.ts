@@ -9,9 +9,9 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { QITS_SCOPE, QitsStepProgress, scopeCommands } from '@qits/ui-components';
+import { QITS_SCOPE, QitsAppLinks, QitsStepProgress, scopeCommands } from '@qits/ui-components';
 import { CiApi } from '../api/ci-api';
-import type { CiQueueResponse, CiRunDto } from '../api/dto';
+import type { CiRunDto } from '../api/dto';
 import { Async } from '../ui/async';
 import { Empty } from '../ui/empty';
 import { hasExpectations, progressSteps } from '../ui/expected-steps';
@@ -19,7 +19,6 @@ import {
   formatDayTime,
   formatDuration,
   formatEta,
-  formatQueueCapacity,
   named,
   runRepositoryLabel,
   shortSha,
@@ -141,16 +140,10 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
       @if (problem()) {
         <span class="stale">· last read failed ({{ problem() }})</span>
       }
-      <a class="runners-link" [routerLink]="['/runners']">Runners</a>
+      @if (targetsHref(); as href) {
+        <a class="targets-link" [href]="href">Targets</a>
+      }
     </h2>
-
-    @if (capacity()) {
-      <!-- How much capacity the queue has to work with, read straight off the same instant the
-           queue itself answers. Absent on a qits-ci too old to carry the runners field at all —
-           see formatQueueCapacity — in which case this line simply is not drawn, the same zero-
-           regression rule every other prediction field on this rail already follows. -->
-      <p class="capacity">{{ capacity() }}</p>
-    }
 
     <app-async
       [state]="state()"
@@ -175,12 +168,6 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
                   <code class="ref">{{ run.branch }}&#64;{{ shortSha(run.commitSha) }}</code>
                   <span class="age">{{ age(run) }}</span>
                 </span>
-                <!-- Which runner is holding this row, once it has actually started: a queued run
-                     has no runner yet, so this is drawn only for RUNNING. "unassigned" is a run
-                     recorded before runners existed, held by the built-in executor instead. -->
-                @if (run.status === 'RUNNING') {
-                  <span class="line runner">on {{ runnerLabel(run) }}</span>
-                }
                 <!-- How long it has waited and when it will move are different facts, so the age
                      above stays and the forecast is its own line. Everything here is approximate and
                      nothing is a clock time — see formatEta. -->
@@ -231,20 +218,10 @@ function isNewer(run: CiRunDto, than: CiRunDto): boolean {
       font-size: 0.8rem;
       color: #b45309;
     }
-    .runners-link {
+    .targets-link {
       float: right;
       font-weight: 400;
       font-size: 0.8rem;
-    }
-    .capacity {
-      margin: 0 0 0.5rem;
-      color: #6b7280;
-      font-size: 0.8rem;
-    }
-    .runner {
-      color: #6b7280;
-      font-size: 0.8rem;
-      font-style: italic;
     }
     .active {
       list-style: none;
@@ -337,6 +314,14 @@ export class ActiveRuns {
    */
   protected readonly home = computed<string[]>(() => [...scopeCommands(this.qitsScope?.scope())]);
   private readonly document = inject(DOCUMENT);
+  private readonly appLinks = inject(QitsAppLinks);
+
+  /**
+   * qits-system's Targets page, where execution targets are managed — qits-ci no longer has a
+   * runners page of its own (epic qits-1481). `undefined` where the platform names no address for
+   * it, in which case the template draws no link at all rather than one that would 404.
+   */
+  protected readonly targetsHref = computed(() => this.appLinks.href('qits-system', 'targets'));
 
   /**
    * The set of runs in flight is not what it was.
@@ -378,15 +363,6 @@ export class ActiveRuns {
 
   /** A failed *poll* is a note beside the heading; a failed *first* read is the retry above. */
   protected readonly problem = signal('');
-
-  /**
-   * How much capacity the queue has, read off `GET /ci/api/runs/queue` on the same tick as the
-   * other two. Empty until the first successful read, and left at whatever it last said on a
-   * failed one — the same "keep the last good answer" rule the rest of this rail already follows,
-   * since a slot count that vanished for one missed poll would read as capacity that disappeared
-   * rather than as a request that timed out.
-   */
-  protected readonly capacity = signal('');
 
   private readonly now = tickingNow();
 
@@ -446,34 +422,23 @@ export class ActiveRuns {
   }
 
   /**
-   * All three reads, on one tick and in parallel.
+   * Both reads, on one tick and in parallel.
    *
    * They are separate requests because they are separate questions the server answers separately,
    * and issuing them together is what makes "this run left the active list and this run arrived in
    * the stack" one instant rather than two. The active read is the one allowed to fail the whole
-   * poll: it is this column's content, while the finished stack and the queue's own capacity are
-   * both history/context that keep whatever they already have. So a finished or a queue read that
-   * fails yields `null` and changes nothing.
+   * poll: it is this column's content, while the finished stack is history that keeps whatever it
+   * already has. So a finished read that fails yields `null` and changes nothing.
    */
-  private async read(): Promise<
-    [readonly CiRunDto[], readonly CiRunDto[] | null, CiQueueResponse | null]
-  > {
-    const [active, finished, queue] = await Promise.all([
+  private async read(): Promise<[readonly CiRunDto[], readonly CiRunDto[] | null]> {
+    const [active, finished] = await Promise.all([
       this.api.activeRuns(),
       this.api.finishedRuns(FINISHED_SEED_COUNT).catch(() => null),
-      this.api.queue().catch(() => null),
     ]);
-    return [active, finished, queue];
+    return [active, finished];
   }
 
-  private accept(
-    active: readonly CiRunDto[],
-    finished: readonly CiRunDto[] | null,
-    queue: CiQueueResponse | null,
-  ): void {
-    if (queue !== null) {
-      this.capacity.set(formatQueueCapacity(queue.runners));
-    }
+  private accept(active: readonly CiRunDto[], finished: readonly CiRunDto[] | null): void {
     const before = this.seen;
     this.state.set(ready(active));
     const ids = new Set(active.map((run) => run.id));
@@ -642,15 +607,5 @@ export class ActiveRuns {
       return first ? `waiting on a run in ${first}` : 'waiting on one run ahead of it';
     }
     return `waiting on ${blockers.length} runs ahead of it`;
-  }
-
-  /**
-   * Which runner is executing this row — its name, or `unassigned` for a run recorded before
-   * runners existed, when a run was held by the built-in executor rather than a runner. Only
-   * meaningful once a run has actually started, which is why the template draws it for `RUNNING`
-   * alone: a queued run has not been claimed by anything yet.
-   */
-  protected runnerLabel(run: CiRunDto): string {
-    return run.runnerName ?? run.runnerId ?? 'unassigned';
   }
 }

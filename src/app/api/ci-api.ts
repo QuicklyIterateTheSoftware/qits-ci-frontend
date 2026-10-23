@@ -8,14 +8,7 @@ import type {
   CiRepositorySummariesResponse,
   CiRepositorySummaryDto,
   CiRunDto,
-  CiRunnerCreated,
-  CiRunnerDto,
-  CiRunnerHealthDto,
-  CiRunnersResponse,
   CiRunsResponse,
-  CreateRunnerRequest,
-  PatchRunnerRequest,
-  RunnerHealthcheckResponse,
 } from './dto';
 
 /**
@@ -157,112 +150,14 @@ export class CiApi {
   }
 
   /**
-   * The run queue as qits-ci itself sees it: how much capacity it has, running and queued runs in
-   * claim order, and — where the deployment answers it — the runners sharing that capacity.
+   * The run queue as qits-ci itself sees it: how much capacity it has, and running and queued runs
+   * in claim order.
    *
    * Bare, not enveloped, like the single-run read: qits-ci's own record carries these fields at its
    * top level rather than wrapping a `runs` list, and this interface is copied field-for-field.
    */
   queue(): Promise<CiQueueResponse> {
     return firstValueFrom(this.http.get<CiQueueResponse>(`${this.base}/ci/api/runs/queue`));
-  }
-
-  /** Every runner qits-ci knows about, whether or not it has ever connected. Enveloped. */
-  async runners(): Promise<readonly CiRunnerDto[]> {
-    const response = await firstValueFrom(
-      this.http.get<CiRunnersResponse>(`${this.base}/ci/api/runners`),
-    );
-    return response.runners;
-  }
-
-  /**
-   * Register a new runner and answer its one-time install script alongside it.
-   *
-   * The 201 body is the only place the script is ever carried — see {@link CiRunnerCreated} — so
-   * the caller must show it now or not at all.
-   */
-  createRunner(body: CreateRunnerRequest): Promise<CiRunnerCreated> {
-    return firstValueFrom(
-      this.http.post<CiRunnerCreated>(`${this.base}/ci/api/runners`, body),
-    );
-  }
-
-  /** Change a runner's slots, description or step memory limit. Send only the fields that changed. */
-  patchRunner(id: string, body: PatchRunnerRequest): Promise<CiRunnerDto> {
-    return firstValueFrom(
-      this.http.patch<CiRunnerDto>(`${this.base}/ci/api/runners/${encodeURIComponent(id)}`, body),
-    );
-  }
-
-  /**
-   * Mint a fresh registration token for a runner that already exists, answering a new install
-   * script the same way creation does. The old token stops working the moment this one is issued.
-   */
-  replaceRegistrationToken(id: string): Promise<CiRunnerCreated> {
-    return firstValueFrom(
-      this.http.post<CiRunnerCreated>(
-        `${this.base}/ci/api/runners/${encodeURIComponent(id)}/registration-token`,
-        null,
-      ),
-    );
-  }
-
-  /**
-   * Remove a runner. 204 on success; a runner still holding a run answers 409 with a message this
-   * client renders rather than a generic failure, since it is a fact the caller can act on — wait,
-   * or move the run first.
-   */
-  async deleteRunner(id: string): Promise<void> {
-    await firstValueFrom(
-      this.http.delete(`${this.base}/ci/api/runners/${encodeURIComponent(id)}`),
-    );
-  }
-
-  /**
-   * Force a quarantined runner out of quarantine immediately, ahead of its next scheduled check.
-   * Admin-only. The server answers either the updated runner or a bare 204 — Angular's `HttpClient`
-   * parses an empty JSON body as `null`, so both shapes come back through the same return type with
-   * no branching needed here.
-   */
-  greenlightRunner(id: string): Promise<CiRunnerDto | null> {
-    return firstValueFrom(
-      this.http.post<CiRunnerDto | null>(
-        `${this.base}/ci/api/runners/${encodeURIComponent(id)}/greenlight`,
-        null,
-      ),
-    );
-  }
-
-  /**
-   * Queue a health check on demand, rather than waiting for the hourly cadence a quarantined
-   * runner already gets. Answers the queued run's id and — qits-896 — the `requestId` the full
-   * node report will carry once it lands, `null` when the runner is not connected to be asked over.
-   * A check already queued or running for this runner answers 409, whose message the caller renders
-   * rather than a generic failure.
-   */
-  runRunnerHealthcheck(id: string): Promise<RunnerHealthcheckResponse> {
-    return firstValueFrom(
-      this.http.post<RunnerHealthcheckResponse>(
-        `${this.base}/ci/api/runners/${encodeURIComponent(id)}/healthcheck`,
-        null,
-      ),
-    );
-  }
-
-  /**
-   * The runner's node health report — qits-896 — every check qits-ci last ran against it, with
-   * each check's own structured data (`nodeInventory`'s containers, volumes and runner container).
-   *
-   * `null` is a bare 204: the runner has never reported, so there is nothing to show. Read the same
-   * way {@link greenlightRunner} already does — Angular's `HttpClient` parses an empty body as
-   * `null` for a JSON response, so no branching on status is needed here.
-   */
-  runnerHealth(id: string): Promise<CiRunnerHealthDto | null> {
-    return firstValueFrom(
-      this.http.get<CiRunnerHealthDto | null>(
-        `${this.base}/ci/api/runners/${encodeURIComponent(id)}/health`,
-      ),
-    );
   }
 }
 
