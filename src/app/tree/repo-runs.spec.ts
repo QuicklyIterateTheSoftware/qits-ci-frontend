@@ -150,4 +150,24 @@ describe('RepoRuns', () => {
     expect(columns()).toEqual(['4m 11s', '45s']);
     expect(text()).toContain('9f2c1ab');
   });
+
+  /**
+   * Two more cancellation reasons beyond the three `cancellationWord` already knew: neither is this
+   * run breaking and neither is a person's doing, so both read like `DEDUPED` rather than like a
+   * failure — and the row draws them through the same neutral `.cancelled` line every other reason
+   * uses, never the badge's failed styling.
+   */
+  it('labels a run held by the pre-run gate as held, not failed', async () => {
+    await show([run('r1', { status: 'CANCELLED', cancellationReason: 'HELD_BY_PRE_RUN_GATE' })]);
+
+    expect(text()).toContain('held: an upstream release is still building');
+  });
+
+  it('labels a run superseded by a newer release request', async () => {
+    await show([
+      run('r1', { status: 'CANCELLED', cancellationReason: 'SUPERSEDED_BY_RELEASE_REQUEST' }),
+    ]);
+
+    expect(text()).toContain('superseded by a newer release request');
+  });
 });

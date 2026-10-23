@@ -244,14 +244,19 @@ export class RunPage {
   protected readonly cancelled = computed(() => this.value()?.status === 'CANCELLED');
 
   /**
-   * What the stop *was*, in a sentence — because the three cancellations lead to three different
-   * next actions and one wording would be wrong for two of them.
+   * What the stop *was*, in a sentence — because the different cancellations lead to different next
+   * actions and one wording would be wrong for the others.
    *
    * `DEDUPED` is the one this exists for. A superseded run never started: a newer push, a newer tag
    * or a newer fold of the same release request took its queue slot, and the run that replaced it is
    * the one carrying the answer. Telling that reader to "re-run it" would be telling them to redo
    * work the platform deliberately collapsed — which is the whole reason a superseded row must not
    * read like a failure either.
+   *
+   * `HELD_BY_PRE_RUN_GATE` and `SUPERSEDED_BY_RELEASE_REQUEST` are the same neutral case again, one
+   * level up: neither is this run failing, and neither is a person's doing, so both read like
+   * `DEDUPED` rather than like an error — an upstream release in flight, or a newer release request
+   * taking this one's slot.
    *
    * A reason this build has not been taught falls back to the plain stopped wording rather than
    * naming a token: the sentence is for a person, and the raw reason is printed verbatim in the
@@ -269,6 +274,10 @@ export class RunPage {
           'The release request this run served was withdrawn, so nobody is waiting for the answer.' +
           ' It published no verdict, and nothing is gated on it.'
         );
+      case 'HELD_BY_PRE_RUN_GATE':
+        return 'Held: an upstream release is still building.';
+      case 'SUPERSEDED_BY_RELEASE_REQUEST':
+        return 'Superseded by a newer release request.';
       default:
         return (
           'This run was stopped. It published no verdict, so nothing is gated on it — re-run it if' +

@@ -264,11 +264,14 @@ export class RepoRuns {
   /**
    * A cancelled run's reason as a phrase, in one line of the list.
    *
-   * The three reasons qits-ci records are three different statements and the list has room for the
-   * difference: `DEDUPED` is the platform collapsing a queue (the row answered nothing and nothing
-   * is missing), `RELEASE_REQUEST_CANCELLED` is the work going away, `USER_CANCELLED` is a person.
-   * A reason this build has not been taught is printed verbatim rather than guessed at — the token
-   * is qits-ci's word and showing it is more honest than inventing a sentence for it.
+   * The reasons qits-ci records are different statements and the list has room for the difference:
+   * `DEDUPED` is the platform collapsing a queue (the row answered nothing and nothing is missing),
+   * `RELEASE_REQUEST_CANCELLED` is the work going away, `USER_CANCELLED` is a person,
+   * `HELD_BY_PRE_RUN_GATE` is an upstream release still building, and
+   * `SUPERSEDED_BY_RELEASE_REQUEST` is a newer release request taking this one's slot. The last two
+   * read like `DEDUPED` rather than like a failure: neither is this run breaking and neither is
+   * anybody's doing. A reason this build has not been taught is printed verbatim rather than guessed
+   * at — the token is qits-ci's word and showing it is more honest than inventing a sentence for it.
    */
   protected cancellationWord(run: CiRunDto): string {
     switch (run.cancellationReason) {
@@ -278,6 +281,10 @@ export class RepoRuns {
         return 'cancelled — the release request was withdrawn';
       case 'USER_CANCELLED':
         return 'cancelled by a person';
+      case 'HELD_BY_PRE_RUN_GATE':
+        return 'held: an upstream release is still building';
+      case 'SUPERSEDED_BY_RELEASE_REQUEST':
+        return 'superseded by a newer release request';
       default:
         return `cancelled — ${run.cancellationReason}`;
     }

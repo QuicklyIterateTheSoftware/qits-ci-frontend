@@ -402,6 +402,42 @@ describe('RunPage', () => {
     http.verify();
   });
 
+  /**
+   * Held by the pre-run gate reads like `DEDUPED`, not like a failure: an upstream release is still
+   * building, which is nobody's doing and not this run breaking, so the plain stopped wording — with
+   * its "re-run it" instruction — would be the wrong note. It shows through the same neutral
+   * `.note-cancelled` element every other reason does, never a failed/error style of its own.
+   */
+  it('says a run held by the pre-run gate is held, not failed', async () => {
+    await open();
+    expectRun().flush(run({ status: 'CANCELLED', cancellationReason: 'HELD_BY_PRE_RUN_GATE' }));
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('Held: an upstream release is still building');
+    expect(text()).not.toContain('re-run it if the answer is still wanted');
+    expect(page().querySelector('.note-cancelled')).toBeTruthy();
+    http.verify();
+  });
+
+  /**
+   * Superseded by a newer release request is the other half of qits-899's new cancellation: a newer
+   * release request took this run's slot, which again is not a failure and not a person stopping it.
+   */
+  it('says a run superseded by a newer release request is superseded, not failed', async () => {
+    await open();
+    expectRun().flush(
+      run({ status: 'CANCELLED', cancellationReason: 'SUPERSEDED_BY_RELEASE_REQUEST' }),
+    );
+    await settle();
+    await flushAttribution();
+
+    expect(text()).toContain('Superseded by a newer release request');
+    expect(text()).not.toContain('re-run it if the answer is still wanted');
+    expect(page().querySelector('.note-cancelled')).toBeTruthy();
+    http.verify();
+  });
+
   it('renders a run id that resolves to nothing as a sentence, not a crash', async () => {
     await open('nope');
     http
