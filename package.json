@@ -36,7 +36,7 @@
     "@ngrx/signals": "^21.1.1",
     "@pact-foundation/pact": "17.1.4",
     "@qits/angular": "2026.1031.21933",
-    "@qits/ci-golden-masters": "2026.1026.163551",
+    "@qits/ci-golden-masters": "2026.1031.93847",
     "@qits/edge-golden-masters": "2026.1010.182320",
     "@qits/githost-golden-masters": "2026.1020.204038",
     "@qits/projects-golden-masters": "2026.1030.185452",
