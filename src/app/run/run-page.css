@@ -158,6 +158,7 @@
   width: 1.2rem;
 }
 
+.name,
 .image {
   color: #4b5563;
   overflow: hidden;

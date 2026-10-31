@@ -21,6 +21,7 @@ import {
 describe('progressSteps', () => {
   const step = (stepIndex: number, over: Partial<CiStepDto> = {}): CiStepDto => ({
     stepIndex,
+    name: null,
     image: 'qits/build-images/node-base:latest',
     status: 'SUCCESS',
     exitCode: 0,

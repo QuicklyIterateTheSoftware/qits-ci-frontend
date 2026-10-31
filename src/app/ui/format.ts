@@ -8,7 +8,7 @@
  * out loud.
  */
 
-import type { CiRunDto, RepositoryDto } from '../api/dto';
+import type { CiRunDto, CiStepDto, RepositoryDto } from '../api/dto';
 
 const MONTHS = [
   'Jan',
@@ -184,6 +184,15 @@ export function runRepositoryLabel(run: Pick<CiRunDto, 'repoId' | 'repoName'>): 
 /** A name the wire actually carries, or null. Empty is absence, whatever the serialiser meant. */
 export function named(name: string | null | undefined): string | null {
   return name ? name : null;
+}
+
+/**
+ * A step tile's label: its `name:` key from the pipeline YAML, trimmed, or null where there is
+ * nothing to show — absent, or sent as whitespace. A tile falls back to {@link CiStepDto.image} in
+ * that case, the way {@link runRepositoryLabel} falls back to `repoId`.
+ */
+export function stepName(step: Pick<CiStepDto, 'name'>): string | null {
+  return named(step.name?.trim());
 }
 
 /**

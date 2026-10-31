@@ -187,6 +187,7 @@ describe('RunPage', () => {
 
   const step = (stepIndex: number, over: Partial<CiStepDto> = {}): CiStepDto => ({
     stepIndex,
+    name: null,
     image: 'qits/build-images/node-base:latest',
     status: 'SUCCESS',
     exitCode: 0,
@@ -372,6 +373,35 @@ describe('RunPage', () => {
     // The last completed step's pane is the one open on arrival.
     expect(page().querySelector('.output')?.textContent).toContain('added 812 packages');
     http.verify();
+  });
+
+  /**
+   * The pipeline YAML's `name:` key, when the step carried one, replaces the image on its tile —
+   * a step is named for what it does, and the image is an implementation detail once there is a
+   * better label.
+   */
+  it('shows a named step’s name on its tile, not its image', async () => {
+    await open();
+    expectRun().flush(run({ steps: [step(0, { name: 'Install dependencies' })] }));
+    await settle();
+    await flushAttribution();
+
+    expect(page().querySelector('.name')?.textContent).toBe('Install dependencies');
+    expect(page().querySelector('.image')).toBeNull();
+  });
+
+  /**
+   * No name on the step — absent, or sent as whitespace — falls back to the image, exactly as
+   * every tile read before `name` existed.
+   */
+  it('falls back to the image on an unnamed step’s tile', async () => {
+    await open();
+    expectRun().flush(run({ steps: [step(0, { name: '  ' })] }));
+    await settle();
+    await flushAttribution();
+
+    expect(page().querySelector('.image')?.textContent).toBe('qits/build-images/node-base:latest');
+    expect(page().querySelector('.name')).toBeNull();
   });
 
   /**

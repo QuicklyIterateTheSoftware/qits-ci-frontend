@@ -223,6 +223,7 @@ describe('ActiveRuns', () => {
         steps: [
           {
             stepIndex: 0,
+            name: null,
             image: 'qits/build-images/node-base:latest',
             status: 'SUCCESS',
             exitCode: 0,

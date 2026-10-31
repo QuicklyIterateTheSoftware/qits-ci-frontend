@@ -206,7 +206,11 @@
             }}</span>
             <span class="index">{{ step.stepIndex }}</span>
             <app-status-badge [status]="step.status" />
-            <code class="image">{{ step.image }}</code>
+            @if (stepName(step); as name) {
+              <span class="name">{{ name }}</span>
+            } @else {
+              <code class="image">{{ step.image }}</code>
+            }
             <span class="exit">{{ step.exitCode === null ? none : 'exit ' + step.exitCode }}</span>
             <span class="when">{{ formatClock(step.startedAt) }}</span>
             <span class="duration">

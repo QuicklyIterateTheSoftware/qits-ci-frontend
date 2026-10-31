@@ -146,6 +146,8 @@ export function isTerminal(status: CiRunStatus): boolean {
  */
 export interface CiStepDto {
   readonly stepIndex: number;
+  /** The step's `name:` key from the pipeline YAML, null when the step never set one. */
+  readonly name: string | null;
   readonly image: string;
   readonly status: CiStepStatus;
   readonly exitCode: number | null;

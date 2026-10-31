@@ -10,6 +10,7 @@ import {
   runRepositoryLabel,
   shortId,
   shortSha,
+  stepName,
   stripAnsi,
 } from './format';
 
@@ -137,5 +138,17 @@ describe('format', () => {
   it('keeps the truncation marker verbatim — the head is gone and cannot be fetched', () => {
     const output = '[... output truncated ...]\nadded 812 packages in 41s\n';
     expect(stripAnsi(output)).toContain('[... output truncated ...]');
+  });
+
+  /**
+   * A step's name wins when the pipeline YAML set one; absence and whitespace both read as nothing
+   * to show, so a tile falls back to the image the same way it did before `name` existed.
+   */
+  it('trims a step’s name, or answers null where there is nothing to show', () => {
+    expect(stepName({ name: 'Install dependencies' })).toBe('Install dependencies');
+    expect(stepName({ name: '  Build  ' })).toBe('Build');
+    expect(stepName({ name: null })).toBeNull();
+    expect(stepName({ name: '' })).toBeNull();
+    expect(stepName({ name: '   ' })).toBeNull();
   });
 });

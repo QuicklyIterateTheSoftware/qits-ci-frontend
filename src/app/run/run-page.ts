@@ -32,6 +32,7 @@ import {
   formatInstant,
   runRepositoryLabel,
   shortSha,
+  stepName,
   stripAnsi,
 } from '../ui/format';
 import { LOADING, describeError, failed, ready, statusOf, type Loadable } from '../ui/loadable';
@@ -81,6 +82,7 @@ export class RunPage {
   protected readonly shortSha = shortSha;
   protected readonly repoLabel = runRepositoryLabel;
   protected readonly stripAnsi = stripAnsi;
+  protected readonly stepName = stepName;
   protected readonly none = NONE;
 
   private readonly params = toSignal(this.route.paramMap, {
