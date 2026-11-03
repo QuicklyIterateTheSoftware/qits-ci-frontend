@@ -46,10 +46,11 @@ describe('RepoRuns', () => {
    * A run in flight, 45 of its expected 100 seconds in — and, since the bar is bound to steps rather
    * than to the wall clock, *through its steps*: step 0 is over and step 1 is 35 of its 90 in.
    */
-  const running = (id: string, over: Partial<CiRunDto> = {}): CiRunDto =>
-    run(id, {
+  const running = (id: string, over: Partial<CiRunDto> = {}): CiRunDto => {
+    const now = Date.now();
+    return run(id, {
       status: 'RUNNING',
-      startedAt: new Date(Date.now() - 45_000).toISOString(),
+      startedAt: new Date(now - 45_000).toISOString(),
       finishedAt: null,
       expectedStepDurationsMillis: [10_000, 90_000],
       steps: [
@@ -59,23 +60,35 @@ describe('RepoRuns', () => {
           image: 'qits/build-images/node-base:latest',
           status: 'SUCCESS',
           exitCode: 0,
-          startedAt: new Date(Date.now() - 45_000).toISOString(),
-          finishedAt: new Date(Date.now() - 35_000).toISOString(),
+          startedAt: new Date(now - 45_000).toISOString(),
+          finishedAt: new Date(now - 35_000).toISOString(),
           output: null,
         },
       ],
       live: {
         stepIndex: 1,
         output: '',
-        startedAt: new Date(Date.now() - 35_000).toISOString(),
+        startedAt: new Date(now - 35_000).toISOString(),
       },
       ...over,
     });
+  };
 
   beforeEach(() => {
+    // One frozen clock for the fixture and the component: `running()` stamps its timestamps
+    // against `Date.now()` when it builds the row, and the component reads `Date.now()` again
+    // while rendering the bar. Without a shared, frozen clock the two reads can straddle a real
+    // clock tick, and the 45s run in flight rounds up to 46 instead of staying at 45.
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    vi.setSystemTime(new Date('2026-07-31T14:10:00Z'));
+
     TestBed.configureTestingModule({
       providers: [provideRouter([]), provideLocationMocks()],
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   async function show(runs: readonly CiRunDto[]): Promise<void> {
