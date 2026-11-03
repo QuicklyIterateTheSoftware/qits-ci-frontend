@@ -1325,7 +1325,7 @@ describe('RunPage', () => {
       openFailure('expected: <403> but was: <204>');
       const read = http.expectOne((request) => request.url === FILE_URL);
       expect(read.request.method).toBe('GET');
-      expect(read.request.withCredentials).toBe(true);
+      // Not withCredentials: carrying the session is the app's bearer interceptor's job since qits-543.
       expect(read.request.params.get('rev')).toBe('9f2c1ab3d4e5');
       expect(read.request.params.get('path')).toBe(FAILURE_FILE);
       http.verify();
