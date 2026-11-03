@@ -1,6 +1,7 @@
 import { provideBrowserGlobalErrorListeners, type ApplicationConfig } from '@angular/core';
-import { provideHttpClient, withFetch } from '@angular/common/http';
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
+import { provideQitsBearerSignIn, qitsBearerInterceptor } from '@qits/angular';
 import {
   provideQitsBuilds,
   provideQitsNavigation,
@@ -12,7 +13,7 @@ import {
 import { routes } from './app.routes';
 
 /**
- * Eight providers, in the order spa-home documents. The third arrived with this application — it
+ * Ten providers, in the order spa-home documents. The fourth arrived with this application — it
  * was the platform's first SPA to make a request — and the last four now make requests of their
  * own.
  *
@@ -20,11 +21,13 @@ import { routes } from './app.routes';
  *   into Angular's `ErrorHandler`.
  * - `provideRouter` carries the tree's expansion in its query parameters and the run id in its
  *   path, so it is what makes both screens bookmarkable.
- * - `withFetch` is not a preference. The default XHR backend is invisible to OTLP fetch
- *   instrumentation, so choosing it would quietly forfeit client spans the moment this deployment
- *   grows a telemetry relay. This app's own reads (`/ci/api/…`) are same-origin paths and carry no
- *   credential; a read of another application's API — `/projects/api/…` among them — goes to that
- *   application's own origin from the navigation below, with the session.
+ * - `provideQitsBearerSignIn({ clientId: 'qits-spa' })` signs this page in with the idp's public PKCE
+ *   client and puts `/auth/callback` in front of the app's own routes (epic qits-543). `withFetch`
+ *   is not a preference. The default XHR backend is invisible to OTLP fetch instrumentation, so
+ *   choosing it would quietly forfeit client spans the moment this deployment grows a telemetry
+ *   relay, and it is also what `qitsBearerInterceptor` needs to attach the bearer. This app's own
+ *   reads (`/ci/api/…`) are same-origin paths; a read of another application's API — `/projects/api/…`
+ *   among them — goes to that application's own origin from the navigation below, with the bearer.
  * - `provideQitsNavigation` gives `QitsMainLayout` its left navigation, by asking the edge for
  *   `/main-navigation` once at startup. The tree is the edge's answer — derived from the
  *   deployments it actually serves — not a list compiled into @qits/ui-components; without this
@@ -54,7 +57,8 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(withFetch()),
+    provideQitsBearerSignIn({ clientId: 'qits-spa' }),
+    provideHttpClient(withFetch(), withInterceptors([qitsBearerInterceptor])),
     provideQitsNavigation(),
     provideQitsProjects(),
     provideQitsScope('repository'),

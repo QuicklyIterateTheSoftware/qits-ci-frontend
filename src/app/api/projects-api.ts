@@ -15,8 +15,8 @@ import type {
  *
  * qits-projects answers on its own host, not this one: the edge routes an application's paths on
  * that application's host only. So every call here goes to `applications['qits-projects'].origin`
- * from the edge's `/main-navigation`, carries the session (`withCredentials` — the edge answers
- * credentialed CORS for any origin under the platform domain), and waits for the navigation to
+ * from the edge's `/main-navigation`, carries the bearer (`qitsBearerInterceptor` attaches it to any
+ * `https` host under the platform domain — see `app.config.ts`), and waits for the navigation to
  * answer rather than firing a relative path at this host first. Where the navigation names no
  * origin the path stays relative, same-origin — what an older edge still routes.
  *
@@ -39,9 +39,7 @@ export class ProjectsApi {
   /** Every project. One request, on page load, and the only unrecoverable failure on the tree. */
   async projects(): Promise<readonly ProjectDto[]> {
     const url = await this.url('/projects/api/projects');
-    const response = await firstValueFrom(
-      this.http.get<ProjectEntriesResponse>(url, { withCredentials: true }),
-    );
+    const response = await firstValueFrom(this.http.get<ProjectEntriesResponse>(url));
     return response.entries.map((entry) => entry.project);
   }
 
@@ -50,9 +48,7 @@ export class ProjectsApi {
     const url = await this.url(
       `/projects/api/projects/${encodeURIComponent(projectId)}/repositories`,
     );
-    const response = await firstValueFrom(
-      this.http.get<RepositoryEntriesResponse>(url, { withCredentials: true }),
-    );
+    const response = await firstValueFrom(this.http.get<RepositoryEntriesResponse>(url));
     return response.entries.map((entry) => entry.repository);
   }
 }

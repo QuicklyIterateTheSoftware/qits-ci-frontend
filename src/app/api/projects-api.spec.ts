@@ -14,7 +14,8 @@ const PROJECTS_ORIGIN = 'https://projects.qits.example';
  *
  * Where these reads go. qits-projects answers on its own host — the edge no longer routes its
  * paths on this one — so every read is an absolute URL on the origin the navigation names, carries
- * the session, and is not made at all until the navigation has said where that origin is.
+ * the bearer (`qitsBearerInterceptor`, installed in `app.config.ts`, not under test here), and is
+ * not made at all until the navigation has said where that origin is.
  */
 describe('ProjectsApi', () => {
   let tree: WritableSignal<QitsNavTree | undefined>;
@@ -56,12 +57,11 @@ describe('ProjectsApi', () => {
     http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`).flush({ entries: [] });
   });
 
-  it('unwraps the project entries, with the session', async () => {
+  it('unwraps the project entries', async () => {
     answer({ 'qits-projects': { origin: PROJECTS_ORIGIN } });
     const projects = api.projects();
     await settle();
     const request = http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects`);
-    expect(request.request.withCredentials).toBe(true);
     request.flush({
       entries: [
         { project: { id: 'p1', name: 'qits', slug: 'qits', description: null, dns: null } },
@@ -70,12 +70,11 @@ describe('ProjectsApi', () => {
     await expect(projects).resolves.toMatchObject([{ id: 'p1', name: 'qits' }]);
   });
 
-  it('unwraps one project’s repository entries, with the session', async () => {
+  it('unwraps one project’s repository entries', async () => {
     answer({ 'qits-projects': { origin: PROJECTS_ORIGIN } });
     const repositories = api.repositories('p1');
     await settle();
     const request = http.expectOne(`${PROJECTS_ORIGIN}/projects/api/projects/p1/repositories`);
-    expect(request.request.withCredentials).toBe(true);
     request.flush({
       entries: [
         {
