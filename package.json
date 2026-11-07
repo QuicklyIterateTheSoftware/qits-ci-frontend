@@ -23,7 +23,7 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
-    "@qits/ui-components": "^2026.1106.180325",
+    "@qits/ui-components": "^2026.1106.215743",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -39,7 +39,7 @@
     "@qits/ci-golden-masters": "2026.1102.180015",
     "@qits/edge-golden-masters": "2026.1010.182320",
     "@qits/githost-golden-masters": "2026.1020.204038",
-    "@qits/projects-golden-masters": "2026.1106.140436",
+    "@qits/projects-golden-masters": "2026.1106.202329",
     "angular-eslint": "^21.4.0",
     "eslint": "^10.8.0",
     "jsdom": "^28.0.0",
