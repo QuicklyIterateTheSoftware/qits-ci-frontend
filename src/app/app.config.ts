@@ -9,6 +9,7 @@ import {
   provideQitsScope,
   provideQitsStandardReportKinds,
 } from '@qits/ui-components';
+import { provideQitsMermaid } from '@qits/ui-components/mermaid';
 
 import { routes } from './app.routes';
 
@@ -52,6 +53,10 @@ import { routes } from './app.routes';
  *   `provideHttpClient` of its own: the area it feeds reads through `QitsReportsClient`, which uses
  *   the one installed above. It now also installs `provideQitsStandardFailureInsights()`, so opening
  *   a located failure in the `test-results` view draws its test code, read from qits-githost.
+ * - `provideQitsMermaid` draws the `entity-changes` report's diagrams (qits-1910). The library's
+ *   main entry point never loads mermaid, so an SPA that draws no diagram ships none of it; it
+ *   lives behind `@qits/ui-components/mermaid`, and without it every diagram stays its definition
+ *   as text.
  */
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -64,5 +69,6 @@ export const appConfig: ApplicationConfig = {
     provideQitsScope('repository'),
     provideQitsBuilds(),
     provideQitsStandardReportKinds(),
+    provideQitsMermaid(),
   ],
 };
