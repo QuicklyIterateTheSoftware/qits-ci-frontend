@@ -18,7 +18,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1110.100623"
+            "version": "2026.1110.191207"
           }
         }
       },
@@ -289,7 +289,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1110.100623"
+            "version": "2026.1110.191207"
           }
         }
       },
@@ -496,7 +496,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1110.100623"
+            "version": "2026.1110.191207"
           }
         }
       },
@@ -656,7 +656,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1110.100623"
+            "version": "2026.1110.191207"
           }
         }
       },
