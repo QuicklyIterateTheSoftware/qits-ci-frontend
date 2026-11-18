@@ -1,6 +1,7 @@
 import type { CanMatchFn, Routes } from '@angular/router';
 import { QITS_CATEGORIES, QitsMainLayout, type QitsCategory } from '@qits/ui-components';
 import { NotFound } from './not-found/not-found';
+import { ProjectRedirect } from './project/project-redirect';
 import { RunPage } from './run/run-page';
 import { TreePage } from './tree/tree-page';
 
@@ -24,6 +25,21 @@ import { TreePage } from './tree/tree-page';
 const own: Routes = [
   { path: '', component: TreePage },
   { path: 'runs/:runId', component: RunPage },
+];
+
+/**
+ * `own`, with its `''` child replaced for the project form alone: `/<slug>` hands off to the
+ * landing app instead of drawing a tree here (qits-2314). `/<slug>/runs/<runId>` is unaffected —
+ * only the `''` child moved, not `own` itself — so a run is still reached under a project exactly
+ * as it always was.
+ *
+ * `ProjectRedirect`, a component, rather than a `redirectTo` string: the destination names a slug
+ * that is only on this route's own parent, and depends on the navigation besides, so it has to be
+ * resolved at the moment the address is opened rather than compiled into the route table.
+ */
+const projectOwn: Routes = [
+  { path: '', component: ProjectRedirect },
+  ...own.filter((route) => route.path !== ''),
 ];
 
 /** The first segments this application's own routes spell, which no project and no group can be. */
@@ -64,20 +80,28 @@ export const isRepositoryAddress: CanMatchFn = (_route, segments) => {
 };
 
 /**
- * Every route inside the platform chrome, three times: bare, under a project, under a repository.
+ * Every route inside the platform chrome: this application's own, bare and under a repository,
+ * and a third form under a project that no longer draws anything of its own here.
  *
  * `QitsMainLayout` is the root *route* component rather than something the shell templates, so the
  * bar and the navigation mount once and survive every navigation beneath them; only the outlet's
  * content changes.
  *
- * **The same components serve all three forms.** `/runs/42`, `/qits/runs/42` and
+ * **The run keeps the same component in all three forms.** `/runs/42`, `/qits/runs/42` and
  * `/qits/services/qits-ci/runs/42` are the same page about the same run; the later ones say which
- * project or repository the reader came in through, and the pages read that from `QITS_SCOPE`
+ * project or repository the reader came in through, and the page reads that from `QITS_SCOPE`
  * rather than from the route parameters — which is why the scoped branches declare no readers of
- * `:project`, `:group` or `:repository` at all.
+ * `:project`, `:group` or `:repository` at all. **The tree does not**: it still serves the bare
+ * address and the repository form, but the project form's `''` child hands over to the landing
+ * app's own CI page for that project instead of drawing it here (`ProjectRedirect`, qits-2314).
+ * `/qits/runs/42` still reaches `RunPage` exactly as before — only the project form's tree moved,
+ * not the rest of it — and the repository form is untouched either way. Both moves are their own
+ * tickets, qits-2321 for the run and qits-2320 for the repository, not this one.
  *
  * **The project form is what the chrome's project picker navigates to.** `UrlScope.select(slug)`
- * goes to `/<slug>/`, so without this route picking a project here would land on the 404 page.
+ * goes to `/<slug>` — no trailing slash; `DefaultUrlSerializer` would otherwise read it as two
+ * segments and this `:project` route would never match — so without a route here picking a
+ * project would land on the 404 page. It now lands on the landing app's CI page for it instead.
  *
  * **Order is the whole grammar**, and it works because the three vocabularies cannot collide: a
  * group is never a slug, and neither is ever one of this app's own first segments. Own routes
@@ -94,7 +118,7 @@ export const routes: Routes = [
     children: [
       ...own,
       { path: ':project/:group/:repository', canMatch: [isRepositoryAddress], children: own },
-      { path: ':project', children: own },
+      { path: ':project', children: projectOwn },
       { path: '**', component: NotFound },
     ],
   },

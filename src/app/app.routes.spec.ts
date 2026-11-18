@@ -4,11 +4,16 @@ import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { QITS_CATEGORIES, provideQitsScope } from '@qits/ui-components';
+import { QITS_CATEGORIES, provideQitsNavigationTree, provideQitsScope } from '@qits/ui-components';
 import { routes } from './app.routes';
 import { NotFound } from './not-found/not-found';
+import { ProjectRedirect } from './project/project-redirect';
 import { RunPage } from './run/run-page';
 import { TreePage } from './tree/tree-page';
+import { NAVIGATE_AWAY } from './ui/navigate-away';
+
+/** Where the fixture navigation says `qits-landing` answers — its own host, not this one. */
+const LANDING_ORIGIN = 'https://landing.qits.example';
 
 /**
  * One page, three spellings of every address.
@@ -23,11 +28,19 @@ import { TreePage } from './tree/tree-page';
  * group, and without `canMatch` the repository branch would claim `/runs/42/anything` as a
  * repository named `anything` and `/qits/runs/42` as a repository `42`. So the literal routes are
  * asserted to still win.
+ *
+ * The project form's own address, `/<slug>` alone, is the one exception since qits-2314: it reaches
+ * `ProjectRedirect` rather than `TreePage`, and the assertion is what that component asked
+ * `NAVIGATE_AWAY` for rather than what got drawn. `ProjectRedirect`'s own origin resolution —
+ * `qits-landing`'s origin, the environment's, a relative path — is `project-redirect.spec.ts`'s to
+ * cover; this file only needs the one case that proves the navigation answered in time.
  */
 describe('routes', () => {
   let harness: RouterTestingHarness;
+  let navigateAway: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
+    navigateAway = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         provideRouter(routes),
@@ -35,6 +48,8 @@ describe('routes', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideQitsScope('repository'),
+        provideQitsNavigationTree({ applications: { 'qits-landing': { origin: LANDING_ORIGIN } } }),
+        { provide: NAVIGATE_AWAY, useValue: navigateAway },
       ],
     });
     harness = await RouterTestingHarness.create();
@@ -74,9 +89,12 @@ describe('routes', () => {
     expect(await activated('/runs/42/nope')).toBe(NotFound);
   });
 
-  it('serves the tree under a project', async () => {
-    // Where the chrome's project picker sends this app when a reader picks `qits`.
-    expect(await activated('/qits')).toBe(TreePage);
+  it('hands the project form off to the landing app instead of drawing a tree', async () => {
+    // Where the chrome's project picker sends this app when a reader picks `qits` — it no longer
+    // stays here (qits-2314).
+    expect(await activated('/qits')).toBe(ProjectRedirect);
+    await vi.waitFor(() => expect(navigateAway).toHaveBeenCalled());
+    expect(navigateAway).toHaveBeenCalledWith(`${LANDING_ORIGIN}/projects/qits/ci`);
   });
 
   it('serves a run under a project', async () => {
