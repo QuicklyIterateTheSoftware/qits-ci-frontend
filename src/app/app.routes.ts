@@ -80,6 +80,15 @@ export const isRepositoryAddress: CanMatchFn = (_route, segments) => {
 };
 
 /**
+ * Is `/<segment>` a project, which hands off to the landing app, or a category (`/services`), which
+ * stays this application's own tree page? The same closed vocabulary {@link isRepositoryAddress}
+ * reads: a category is never a project slug, so a category takes the plain `own` branch below and
+ * keeps drawing the tree it always drew (qits-2314).
+ */
+export const isProjectAddress: CanMatchFn = (_route, segments) =>
+  !QITS_CATEGORIES.includes(segments[0]?.path as QitsCategory);
+
+/**
  * Every route inside the platform chrome: this application's own, bare and under a repository,
  * and a third form under a project that no longer draws anything of its own here.
  *
@@ -118,7 +127,8 @@ export const routes: Routes = [
     children: [
       ...own,
       { path: ':project/:group/:repository', canMatch: [isRepositoryAddress], children: own },
-      { path: ':project', children: projectOwn },
+      { path: ':project', canMatch: [isProjectAddress], children: projectOwn },
+      { path: ':project', children: own },
       { path: '**', component: NotFound },
     ],
   },

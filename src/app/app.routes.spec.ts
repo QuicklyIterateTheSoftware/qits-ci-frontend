@@ -97,6 +97,13 @@ describe('routes', () => {
     expect(navigateAway).toHaveBeenCalledWith(`${LANDING_ORIGIN}/projects/qits/ci`);
   });
 
+  it('keeps a category its own tree rather than handing it off as a project', async () => {
+    for (const category of QITS_CATEGORIES) {
+      expect(await activated(`/${category}`)).toBe(TreePage);
+    }
+    expect(navigateAway).not.toHaveBeenCalled();
+  });
+
   it('serves a run under a project', async () => {
     expect(await activated('/qits/runs/42')).toBe(RunPage);
   });
