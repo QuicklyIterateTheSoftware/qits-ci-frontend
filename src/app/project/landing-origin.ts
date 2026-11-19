@@ -23,9 +23,9 @@ export const LANDING_ORIGIN_WAIT_MS = 1500;
  * stands right now instead, so a reader is never left on a blank hand-off page by a navigation
  * that is merely slow — or that never answers at all.
  *
- * Shared by every hand-off page under `project/` ({@link ProjectRedirect}, {@link
- * RepositoryRedirect}): the rule is the same whichever address is leaving, only the path built on
- * top of the origin differs.
+ * Shared by every hand-off page ({@link ProjectRedirect}, {@link RepositoryRedirect}, and
+ * `RunRedirect` and `handOffRun` under `run/`, qits-2321): the rule is the same whichever address
+ * is leaving, only the path built on top of the origin differs.
  */
 export async function landingOrigin(links: QitsAppLinks): Promise<string> {
   const settled = links

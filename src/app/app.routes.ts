@@ -4,6 +4,7 @@ import { NotFound } from './not-found/not-found';
 import { ProjectRedirect } from './project/project-redirect';
 import { RepositoryRedirect } from './project/repository-redirect';
 import { RunPage } from './run/run-page';
+import { RunRedirect, handOffRun } from './run/run-redirect';
 import { TreePage } from './tree/tree-page';
 
 /**
@@ -22,37 +23,42 @@ import { TreePage } from './tree/tree-page';
  *
  * Both pages load eagerly. There are two of them and they share every component below them; a lazy
  * chunk boundary here would be ceremony that costs a round trip.
+ *
+ * **The run hands off when it can** (qits-2321): the landing app has its own page for a run,
+ * `/projects/<slug>/ci/runs/<runId>`, and {@link handOffRun} sends the bare address there once the
+ * run and the project list say which slug that is. When they cannot say — a run naming no project,
+ * a project nobody lists, a read that fails or is slow — the guard lets `RunPage` draw here, as it
+ * always did.
  */
 const own: Routes = [
   { path: '', component: TreePage },
-  { path: 'runs/:runId', component: RunPage },
+  { path: 'runs/:runId', component: RunPage, canActivate: [handOffRun] },
 ];
 
 /**
- * `own`, with its `''` child replaced for the project form alone: `/<slug>` hands off to the
- * landing app instead of drawing a tree here (qits-2314). `/<slug>/runs/<runId>` is unaffected —
- * only the `''` child moved, not `own` itself — so a run is still reached under a project exactly
- * as it always was.
+ * `own`, with its run child replaced for the scoped forms: the address already names the project, so
+ * `RunRedirect` hands off to the landing app's run page without reading anything (qits-2321).
+ */
+const scopedRun: Routes = [{ path: 'runs/:runId', component: RunRedirect }];
+
+/**
+ * `own`, with both its children replaced for the project form: `/<slug>` hands off to the landing
+ * app instead of drawing a tree here (qits-2314), and `/<slug>/runs/<runId>` hands off to the
+ * landing app's run page for that project (qits-2321).
  *
  * `ProjectRedirect`, a component, rather than a `redirectTo` string: the destination names a slug
  * that is only on this route's own parent, and depends on the navigation besides, so it has to be
  * resolved at the moment the address is opened rather than compiled into the route table.
  */
-const projectOwn: Routes = [
-  { path: '', component: ProjectRedirect },
-  ...own.filter((route) => route.path !== ''),
-];
+const projectOwn: Routes = [{ path: '', component: ProjectRedirect }, ...scopedRun];
 
 /**
- * `own`, with its `''` child replaced for the repository form alone: `/<project>/<group>/<repo>`
- * hands off to the landing app instead of drawing a tree here (qits-2320).
- * `/<project>/<group>/<repo>/runs/<runId>` is unaffected, on the same terms {@link projectOwn}
- * keeps the project form's run address working — only the `''` child moved, not `own` itself.
+ * `own`, with both its children replaced for the repository form: `/<project>/<group>/<repo>`
+ * hands off to the landing app instead of drawing a tree here (qits-2320), and
+ * `/<project>/<group>/<repo>/runs/<runId>` hands off to the landing app's run page for the project
+ * (qits-2321) — landing's run address names no repository, so the group and the repository drop.
  */
-const repositoryOwn: Routes = [
-  { path: '', component: RepositoryRedirect },
-  ...own.filter((route) => route.path !== ''),
-];
+const repositoryOwn: Routes = [{ path: '', component: RepositoryRedirect }, ...scopedRun];
 
 /** The first segments this application's own routes spell, which no project and no group can be. */
 const OWN_SEGMENTS: ReadonlySet<string> = new Set(
@@ -108,17 +114,13 @@ export const isProjectAddress: CanMatchFn = (_route, segments) =>
  * bar and the navigation mount once and survive every navigation beneath them; only the outlet's
  * content changes.
  *
- * **The run keeps the same component in all three forms.** `/runs/42`, `/qits/runs/42` and
- * `/qits/services/qits-ci/runs/42` are the same page about the same run; the later ones say which
- * project or repository the reader came in through, and the page reads that from `QITS_SCOPE`
- * rather than from the route parameters — which is why the scoped branches declare no readers of
- * `:project`, `:group` or `:repository` at all. **The tree does not**: it still serves the bare
+ * **Every scoped form hands off.** `/runs/42`, `/qits/runs/42` and `/qits/services/qits-ci/runs/42`
+ * are the same run; the scoped two name its project, so `RunRedirect` sends them straight to the
+ * landing app's run page for it (qits-2321), and the bare one reaches `RunPage` only when
+ * {@link handOffRun} cannot work out the project to send it to. **The tree** still serves the bare
  * address, but the project form's `''` child hands over to the landing app's own CI page for that
  * project (`ProjectRedirect`, qits-2314), and the repository form's `''` child hands over, the same
  * way, to the landing app's CI page for that one repository (`RepositoryRedirect`, qits-2320).
- * `/qits/runs/42` and `/qits/services/qits-ci/runs/42` still reach `RunPage` exactly as before —
- * only each form's own tree moved, not the run beside it, and that move is its own ticket,
- * qits-2321, not this one.
  *
  * **The project form is what the chrome's project picker navigates to.** `UrlScope.select(slug)`
  * goes to `/<slug>` — no trailing slash; `DefaultUrlSerializer` would otherwise read it as two

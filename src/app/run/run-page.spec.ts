@@ -2,9 +2,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, type Routes } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import {
+  QitsMainLayout,
   provideQitsNavigationTree,
   provideQitsRepositoryList,
   provideQitsScope,
@@ -19,9 +20,21 @@ import {
   type QitsTestResultsPayload,
 } from '@qits/ui-components';
 import { of } from 'rxjs';
-import { routes } from '../app.routes';
 import type { CiRunDto, CiStepDto, ProjectDto } from '../api/dto';
-import { POLL_INTERVAL_MS } from './run-page';
+import { POLL_INTERVAL_MS, RunPage } from './run-page';
+
+/**
+ * The run page on the bare address, without the hand-off in front of it.
+ *
+ * The application's own `runs/:runId` first asks whether the run can go to the landing app
+ * (`handOffRun`, qits-2321), which reads the run and the project list before this page reads either
+ * — so through the real table every spec here would answer two run reads and see the page only on
+ * the hand-off's fallback. What reaches this page, and when, is `app.routes.spec.ts`'s question;
+ * this file's is what the page does once it is reached.
+ */
+const routes: Routes = [
+  { path: '', component: QitsMainLayout, children: [{ path: 'runs/:runId', component: RunPage }] },
+];
 
 /** Where the fixture navigation says qits-projects answers — its own host, not this one. */
 const PROJECTS_ORIGIN = 'https://projects.qits.example';

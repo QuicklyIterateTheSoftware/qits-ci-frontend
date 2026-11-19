@@ -7,8 +7,8 @@ import { landingOrigin } from './landing-origin';
 /**
  * The bare repository address, `/<project>/<group>/<repository>` — the `''` child of the
  * `:project/:group/:repository` route alone, never the run form beside it
- * (`/<project>/<group>/<repository>/runs/<runId>`), which keeps rendering here unchanged until
- * qits-2321.
+ * (`/<project>/<group>/<repository>/runs/<runId>`), which hands off on its own terms
+ * (`RunRedirect`, qits-2321).
  *
  * It draws nothing of its own. The address used to open this application's tree scoped to that
  * one repository; qits-2320 hands that page to the landing app instead, whose own address for it
