@@ -17,19 +17,22 @@ import type { ProjectDto, RepositoryDto } from '../api/dto';
 const PROJECTS_ORIGIN = 'https://projects.qits.example';
 
 /**
- * What a scoped address does to the tree, which is the whole of this application's scope awareness.
+ * What the unscoped tree draws, now that every address which used to narrow it — the project form
+ * and, since qits-2320, the repository form too — hands off to the landing app instead of reaching
+ * `TreePage` at all (`app.routes.spec.ts` covers the hand-off itself, and `project-redirect.spec.ts`
+ * / `repository-redirect.spec.ts` cover what each one asks `NAVIGATE_AWAY` for).
  *
- * `/qits/services/qits-ci/` is a request for one repository's runs. The tree answers it by drawing
- * that project alone, opening it and the repository named, and dropping the unattributed bucket —
- * which is about no project and therefore has nothing to say inside one. Everything below that is
- * the same page: the same reads, the same expansion parameters, the same rail.
+ * `TreePage` still reads `QITS_SCOPE` and still narrows on it — that code is not this ticket's to
+ * touch, and the unscoped `?repo=` entry-placement path (`tree-page.spec.ts`) still exercises part
+ * of the same machinery — but no route in this application produces a scope other than empty any
+ * more, so there is no address left here through which a *narrowed* render is reachable. What is
+ * left to assert is only that the bare address still draws the whole tree.
  *
  * The project and repository listings are literals here rather than requests. They are the chrome's
- * reads, not this page's, and standing them up as fixtures is what lets a spec state a scope that
- * has actually *resolved* — the ids are what the page filters on, and the slug in the URL is only
- * the way in.
+ * reads, not this page's, and standing them up as fixtures is what lets this spec mount the page for
+ * real rather than with every dependency stubbed away.
  */
-describe('TreePage in scope', () => {
+describe('TreePage unscoped', () => {
   let http: HttpTestingController;
   let harness: RouterTestingHarness;
 
@@ -53,7 +56,7 @@ describe('TreePage in scope', () => {
     projectId,
   });
 
-  /** The chrome's two listings, as literals, so a scope can actually resolve to ids. */
+  /** The chrome's two listings, as literals, so the page's attribution index can actually resolve. */
   function configure(): void {
     TestBed.configureTestingModule({
       providers: [
@@ -109,38 +112,7 @@ describe('TreePage in scope', () => {
 
   beforeEach(() => configure());
 
-  it('draws only the scoped project, opens the repository, and drops the bucket', async () => {
-    await open('/qits/services/qits-ci');
-    // The scoped repository's runs are asked for because the address opened it.
-    http
-      .expectOne(
-        (request) => request.url === '/ci/api/runs' && request.params.get('repositoryId') === 'r1',
-      )
-      .flush({ runs: [] });
-    await settle();
-
-    expect(text()).toContain('qits-ci');
-    expect(text()).not.toContain('website');
-    expect(text()).not.toContain('Not claimed by any project');
-    // The header says what is on screen rather than counting the whole platform.
-    expect(text()).toContain('qits · qits-ci');
-    http.verify();
-  });
-
-  it('narrows to the project when the repository named is not one of its own', async () => {
-    // The project resolves and the repository does not, so the scope is effectively project-only:
-    // the tree is that project's, nothing is opened, and no run list is read for a repository the
-    // project does not hold.
-    await open('/qits/services/not-a-repository');
-
-    // The row is drawn — the project is on screen — but nothing under it is opened.
-    expect(text()).toContain('qits-ci');
-    expect(text()).not.toContain('website');
-    expect(text()).not.toContain('Not claimed by any project');
-    http.verify();
-  });
-
-  it('leaves the unscoped tree alone', async () => {
+  it('draws every project and the unattributed bucket at the bare address', async () => {
     await open('/');
 
     expect(text()).toContain('Not claimed by any project');
