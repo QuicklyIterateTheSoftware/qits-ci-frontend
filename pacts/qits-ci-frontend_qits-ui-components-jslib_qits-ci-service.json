@@ -18,7 +18,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1119.65459"
+            "version": "2026.1121.223419"
           }
         }
       },
@@ -152,7 +152,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         }
@@ -165,7 +165,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         },
@@ -197,7 +197,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         }
@@ -228,7 +228,7 @@
               "combine": "AND",
               "matchers": [
                 {
-                  "match": "number"
+                  "match": "type"
                 }
               ]
             },
@@ -236,7 +236,7 @@
               "combine": "AND",
               "matchers": [
                 {
-                  "match": "number"
+                  "match": "type"
                 }
               ]
             },
@@ -244,7 +244,7 @@
               "combine": "AND",
               "matchers": [
                 {
-                  "match": "number"
+                  "match": "type"
                 }
               ]
             },
@@ -289,7 +289,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1119.65459"
+            "version": "2026.1121.223419"
           }
         }
       },
@@ -410,7 +410,7 @@
               "combine": "AND",
               "matchers": [
                 {
-                  "match": "number"
+                  "match": "type"
                 }
               ]
             },
@@ -435,7 +435,7 @@
               "combine": "AND",
               "matchers": [
                 {
-                  "match": "number"
+                  "match": "type"
                 }
               ]
             },
@@ -443,7 +443,7 @@
               "combine": "AND",
               "matchers": [
                 {
-                  "match": "number"
+                  "match": "type"
                 }
               ]
             },
@@ -451,7 +451,7 @@
               "combine": "AND",
               "matchers": [
                 {
-                  "match": "number"
+                  "match": "type"
                 }
               ]
             },
@@ -496,7 +496,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1119.65459"
+            "version": "2026.1121.223419"
           }
         }
       },
@@ -656,7 +656,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1119.65459"
+            "version": "2026.1121.223419"
           }
         }
       },
@@ -888,7 +888,7 @@
                                       "combine": "AND",
                                       "matchers": [
                                         {
-                                          "match": "number"
+                                          "match": "type"
                                         }
                                       ]
                                     }
@@ -901,7 +901,7 @@
                                       "combine": "AND",
                                       "matchers": [
                                         {
-                                          "match": "number"
+                                          "match": "type"
                                         }
                                       ]
                                     },
@@ -933,7 +933,7 @@
                                       "combine": "AND",
                                       "matchers": [
                                         {
-                                          "match": "number"
+                                          "match": "type"
                                         }
                                       ]
                                     }
@@ -964,7 +964,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         },
@@ -972,7 +972,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         },
@@ -980,7 +980,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         },
@@ -1062,10 +1062,10 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             },
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         },
@@ -1090,7 +1090,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         },
@@ -1098,7 +1098,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         },
@@ -1106,7 +1106,7 @@
                           "combine": "AND",
                           "matchers": [
                             {
-                              "match": "number"
+                              "match": "type"
                             }
                           ]
                         },
