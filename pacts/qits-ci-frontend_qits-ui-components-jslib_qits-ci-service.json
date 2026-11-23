@@ -18,7 +18,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -51,7 +51,8 @@
             "combine": "AND",
             "matchers": [
               {
-                "match": "type"
+                "match": "regex",
+                "regex": "^/ci/api/runs/00000000-0000-4000-8000-000000000008/reports/00000000-0000-4000-8000-000000000006$"
               }
             ]
           }
@@ -289,7 +290,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -322,7 +323,8 @@
             "combine": "AND",
             "matchers": [
               {
-                "match": "type"
+                "match": "regex",
+                "regex": "^/ci/api/runs/00000000-0000-4000-8000-000000000008/baseline/reports/test-results$"
               }
             ]
           }
@@ -496,7 +498,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -656,7 +658,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -689,7 +691,8 @@
             "combine": "AND",
             "matchers": [
               {
-                "match": "type"
+                "match": "regex",
+                "regex": "^/ci/api/runs/00000000-0000-4000-8000-000000000008/reports$"
               }
             ]
           }

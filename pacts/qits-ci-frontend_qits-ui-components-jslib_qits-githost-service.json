@@ -18,7 +18,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -48,7 +48,8 @@
             "combine": "AND",
             "matchers": [
               {
-                "match": "type"
+                "match": "regex",
+                "regex": "^/githost/api/repositories/00000000-0000-4000-8000-000000000002/file$"
               }
             ]
           }
@@ -119,7 +120,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -150,7 +151,8 @@
             "combine": "AND",
             "matchers": [
               {
-                "match": "type"
+                "match": "regex",
+                "regex": "^/githost/api/repositories/00000000-0000-4000-8000-000000000002/file$"
               }
             ]
           }
@@ -221,7 +223,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -253,7 +255,8 @@
             "combine": "AND",
             "matchers": [
               {
-                "match": "type"
+                "match": "regex",
+                "regex": "^/githost/api/repositories/00000000-0000-4000-8000-000000000002/file$"
               }
             ]
           }
@@ -351,7 +354,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -379,7 +382,8 @@
             "combine": "AND",
             "matchers": [
               {
-                "match": "type"
+                "match": "regex",
+                "regex": "^/githost/api/repositories/00000000-0000-4000-8000-000000000001/file$"
               }
             ]
           }
@@ -450,7 +454,7 @@
           "qits-via": {
             "artifact": "@qits/ui-components",
             "repository": "qits-ui-components-jslib",
-            "version": "2026.1122.215148"
+            "version": "2026.1123.82818"
           }
         }
       },
@@ -482,7 +486,8 @@
             "combine": "AND",
             "matchers": [
               {
-                "match": "type"
+                "match": "regex",
+                "regex": "^/githost/api/repositories/00000000-0000-4000-8000-000000000002/raw$"
               }
             ]
           }
